@@ -81,6 +81,7 @@ class YKKApSmartLockBleClient:
                 ble_device,
                 self._name or self._address,
                 max_attempts=4,
+                pair=True,
                 timeout=DEFAULT_CONNECTION_TIMEOUT,
             )
         except Exception as err:  # bleak backends expose different exception types
