@@ -1,0 +1,60 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Python environments and packaging output
+.venv/
+venv/
+env/
+ENV/
+build/
+dist/
+eggs/
+.eggs/
+*.egg-info/
+pip-wheel-metadata/
+*.whl
+
+# Home Assistant local runtime data
+.storage/
+deps/
+home-assistant.log*
+home-assistant_v2.db*
+secrets.yaml
+
+# Local tools, APKs, and reverse-engineering output
+.tools/
+analysis/
+*.apk
+*.aab
+*.apks
+*.xapk
+
+# BLE captures and other potentially sensitive diagnostics
+captures/
+capture/
+logs/
+*.pcap
+*.pcapng
+*.btsnoop*
+
+# Editors and operating-system files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Local environment files
+.env
+.env.*
+!.env.example

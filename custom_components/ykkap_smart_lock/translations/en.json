@@ -1,0 +1,60 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add YKKApSmartLock",
+        "description": "Enter the lock's BLE address. The official phone must already be bound to this lock.",
+        "data": {
+          "address": "BLE address",
+          "name": "Name"
+        }
+      },
+      "bluetooth": {
+        "title": "Add {name}",
+        "description": "The lock was found over Bluetooth. The official phone must already be bound to it."
+      },
+      "register": {
+        "title": "Register YKKApSmartLock",
+        "description": "On the official phone, open ordinary-device registration mode for {address}. Then enable Ready and continue. The integration will request 0x52, request a new ordinary smartphoneId with 0x51, and optionally exit with 0x54.",
+        "data": {
+          "ready": "The lock is in ordinary-device registration mode",
+          "request_adv_key": "Request advertising key",
+          "exit_registration": "Exit registration mode when finished"
+        }
+      }
+    },
+    "error": {
+      "invalid_address": "Enter a valid BLE MAC address or platform Bluetooth UUID.",
+      "not_ready": "Open ordinary-device registration mode on the official phone first.",
+      "registration_failed": "Registration failed. Check that the official phone is bound, the lock is in registration mode, and Home Assistant can connect over BLE."
+    },
+    "abort": {
+      "already_configured": "This YKKApSmartLock is already configured.",
+      "not_connectable": "This Bluetooth adapter can see the lock but cannot connect to it.",
+      "missing_device": "The Bluetooth device information is missing."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "YKKApSmartLock options"
+      }
+    }
+  },
+  "services": {
+    "register_device": {
+      "name": "Register ordinary BLE device",
+      "description": "Register this Home Assistant Bluetooth central after the official phone has opened ordinary-device registration mode.",
+      "fields": {
+        "request_adv_key": {
+          "name": "Request advertising key",
+          "description": "Request and retain the 16-byte advertising key returned by command 0x10."
+        },
+        "exit_registration": {
+          "name": "Exit registration mode",
+          "description": "Send command 0x54 after the new smartphone slot is assigned."
+        }
+      }
+    }
+  }
+}

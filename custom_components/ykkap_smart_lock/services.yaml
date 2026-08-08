@@ -1,0 +1,24 @@
+register_device:
+  name: Register ordinary BLE device
+  description: >-
+    Register this Home Assistant Bluetooth central after the official phone has
+    already been bound to the lock and has opened ordinary-device registration mode.
+  target:
+    entity:
+      integration: ykkap_smart_lock
+      domain: lock
+  fields:
+    request_adv_key:
+      name: Request advertising key
+      description: Request and retain the 16-byte advertising key returned by command 0x10.
+      required: false
+      default: true
+      selector:
+        boolean:
+    exit_registration:
+      name: Exit registration mode
+      description: Send command 0x54 after the new smartphone slot is assigned.
+      required: false
+      default: true
+      selector:
+        boolean:

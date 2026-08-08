@@ -1,0 +1,60 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "YKKApSmartLock を追加",
+        "description": "ロックの BLE アドレスを入力してください。公式スマートフォンで、このロックとのバインドをあらかじめ完了しておく必要があります。",
+        "data": {
+          "address": "BLE アドレス",
+          "name": "名前"
+        }
+      },
+      "bluetooth": {
+        "title": "{name} を追加",
+        "description": "Bluetooth 経由でロックを検出しました。公式スマートフォンで、あらかじめロックとのバインドを完了してください。"
+      },
+      "register": {
+        "title": "YKKApSmartLock を登録",
+        "description": "公式スマートフォンで {address} の通常デバイス登録モードを開いてください。その後「準備完了」を有効にして続行します。この統合は 0x52 を要求し、0x51 で通常デバイス用の smartphoneId を割り当て、必要に応じて 0x54 で登録モードを終了します。",
+        "data": {
+          "ready": "ロックが通常デバイス登録モードになっている",
+          "request_adv_key": "広告データキーを要求する",
+          "exit_registration": "完了後に登録モードを終了する"
+        }
+      }
+    },
+    "error": {
+      "invalid_address": "有効な BLE MAC アドレスまたはプラットフォームの Bluetooth UUID を入力してください。",
+      "not_ready": "先に公式スマートフォンで通常デバイス登録モードを開いてください。",
+      "registration_failed": "登録に失敗しました。公式スマートフォンのバインド、ロックの登録モード、Home Assistant の BLE 接続を確認してください。"
+    },
+    "abort": {
+      "already_configured": "この YKKApSmartLock はすでに設定されています。",
+      "not_connectable": "Bluetooth アダプターはロックを検出できますが、接続できません。",
+      "missing_device": "Bluetooth デバイス情報がありません。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "YKKApSmartLock のオプション"
+      }
+    }
+  },
+  "services": {
+    "register_device": {
+      "name": "通常 BLE デバイスを登録",
+      "description": "公式スマートフォンで通常デバイス登録モードを開いた後、この Home Assistant Bluetooth Central を登録します。",
+      "fields": {
+        "request_adv_key": {
+          "name": "広告データキーを要求",
+          "description": "コマンド 0x10 が返す 16 バイトの広告データキーを要求して保存します。"
+        },
+        "exit_registration": {
+          "name": "登録モードを終了",
+          "description": "新しい smartphoneId の割り当て後にコマンド 0x54 を送信します。"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "domain": "ykkap_smart_lock",
+  "name": "YKKApSmartLock",
+  "version": "0.1.0",
+  "documentation": "https://github.com/kyokuheishin/ha-ykk-ap-smart-lock",
+  "issue_tracker": "https://github.com/kyokuheishin/ha-ykk-ap-smart-lock/issues",
+  "codeowners": ["@kyoku"],
+  "integration_type": "device",
+  "config_flow": true,
+  "dependencies": ["bluetooth_adapters"],
+  "requirements": ["bleak-retry-connector>=3.0.0"],
+  "bluetooth": [
+    {
+      "connectable": true,
+      "service_uuid": "a437df7b-60cc-4b5c-98d1-c05e85c88c77"
+    },
+    {
+      "connectable": true,
+      "manufacturer_id": 2461
+    }
+  ],
+  "iot_class": "local_push"
+}
