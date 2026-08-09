@@ -29,6 +29,7 @@ from .protocol import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+_MAX_RESPONSE_SIZE = 512
 
 
 class YKKApSmartLockConnectionError(Exception):
@@ -84,6 +85,8 @@ class YKKApSmartLockBleClient:
                 pair=True,
                 timeout=DEFAULT_CONNECTION_TIMEOUT,
             )
+        except YKKApSmartLockConnectionError:
+            raise
         except Exception as err:  # bleak backends expose different exception types
             raise YKKApSmartLockConnectionError(
                 f"unable to connect to YKKApSmartLock at {self._address}: {err}"
@@ -118,25 +121,40 @@ class YKKApSmartLockBleClient:
             await self._client.start_notify(
                 self._notify_characteristic, self._notification_callback
             )
-        except Exception:
+        except YKKApSmartLockConnectionError:
             await self.disconnect()
             raise
+        except Exception as err:
+            await self.disconnect()
+            raise YKKApSmartLockConnectionError(
+                f"unable to initialize YKKApSmartLock services at {self._address}: "
+                f"{err}"
+            ) from err
 
     async def disconnect(self) -> None:
         """Stop notifications and release the BLE connection."""
 
-        if self._client is None:
-            return
+        client = self._client
         try:
-            if self._notify_characteristic is not None and self._notification_callback:
+            if client is not None:
+                if (
+                    self._notify_characteristic is not None
+                    and self._notification_callback
+                ):
+                    try:
+                        await client.stop_notify(self._notify_characteristic)
+                    except Exception:  # the connection may already have disappeared
+                        _LOGGER.debug(
+                            "Unable to stop YKKApSmartLock notifications",
+                            exc_info=True,
+                        )
                 try:
-                    await self._client.stop_notify(self._notify_characteristic)
+                    if client.is_connected:
+                        await client.disconnect()
                 except Exception:  # the connection may already have disappeared
                     _LOGGER.debug(
-                        "Unable to stop YKKApSmartLock notifications", exc_info=True
+                        "Unable to disconnect YKKApSmartLock", exc_info=True
                     )
-            if self._client.is_connected:
-                await self._client.disconnect()
         finally:
             self._client = None
             self._notify_characteristic = None
@@ -164,11 +182,18 @@ class YKKApSmartLockBleClient:
         # write-without-response.  Select the mode from the discovered GATT
         # characteristic instead of retrying a potentially destructive write.
         write_with_response = "write" in properties or not properties
-        await self._client.write_gatt_char(
-            self._write_characteristic,
-            packet,
-            response=write_with_response,
-        )
+        try:
+            await self._client.write_gatt_char(
+                self._write_characteristic,
+                packet,
+                response=write_with_response,
+            )
+        except YKKApSmartLockConnectionError:
+            raise
+        except Exception as err:
+            raise YKKApSmartLockConnectionError(
+                f"unable to write YKKApSmartLock command 0x{command:02x}: {err}"
+            ) from err
         return await self._wait_for_response(
             base, command, timeout or self._response_timeout
         )
@@ -181,6 +206,7 @@ class YKKApSmartLockBleClient:
         deadline = asyncio.get_running_loop().time() + timeout
         expected = response_length(base, command)
         partial = bytearray()
+        target_header = bytes((base, command))
 
         while True:
             remaining = deadline - asyncio.get_running_loop().time()
@@ -195,41 +221,86 @@ class YKKApSmartLockBleClient:
                     f"no response for YKKApSmartLock command 0x{command:02x}"
                 ) from err
 
+            if len(notification) > _MAX_RESPONSE_SIZE:
+                raise YKKApSmartLockProtocolError(
+                    f"YKKApSmartLock notification has {len(notification)} bytes; "
+                    f"maximum is {_MAX_RESPONSE_SIZE}"
+                )
+
+            # A notification can be a complete unrelated frame while a target
+            # response is already split across earlier notifications.  Validate
+            # it independently before adding anything to the target partial.
+            if len(notification) >= 4:
+                try:
+                    standalone = parse_frame(notification)
+                except YKKApSmartLockProtocolError as err:
+                    standalone = None
+                    standalone_error = err
+                else:
+                    standalone_error = None
+
+                if standalone is not None:
+                    if (
+                        standalone.base == base
+                        and standalone.command == command
+                        and standalone.is_response
+                    ):
+                        return ensure_response(standalone, base, command)
+                    _LOGGER.debug(
+                        "Ignoring unrelated YKKApSmartLock notification: "
+                        "direction=0x%02x command=0x%02x",
+                        standalone.direction,
+                        standalone.command,
+                    )
+                    continue
+            else:
+                standalone_error = None
+
+            if not partial and len(notification) >= 2 and not notification.startswith(
+                target_header
+            ):
+                _LOGGER.debug(
+                    "Ignoring non-matching YKKApSmartLock notification header: "
+                    "data=%s error=%s",
+                    notification.hex(),
+                    standalone_error,
+                )
+                continue
+
+            if len(partial) + len(notification) > _MAX_RESPONSE_SIZE:
+                raise YKKApSmartLockProtocolError(
+                    f"YKKApSmartLock response exceeded {_MAX_RESPONSE_SIZE} bytes"
+                )
+            partial.extend(notification)
+
             if expected is not None:
-                partial.extend(notification)
                 while len(partial) >= expected:
                     candidate = bytes(partial[:expected])
                     del partial[:expected]
                     try:
                         frame = parse_frame(candidate)
+                        return ensure_response(frame, base, command)
                     except YKKApSmartLockProtocolError as err:
                         raise YKKApSmartLockProtocolError(
                             "invalid YKKApSmartLock response for command "
                             f"0x{command:02x}: {err}"
                         ) from err
-                    if (
-                        frame.base == base
-                        and frame.command == command
-                        and frame.is_response
-                    ):
-                        return frame
                 continue
 
-            partial.extend(notification)
             try:
                 frame = parse_frame(bytes(partial))
             except YKKApSmartLockProtocolError as err:
-                # A short notification may be one fragment of a larger packet.
-                # For a complete but unrelated/bad notification, discard it and
-                # continue waiting so passive events cannot break a command.
-                if len(partial) < 4 or "shorter" in str(err):
-                    continue
+                # A variable response may be split after four or more bytes;
+                # retain it until CRC succeeds, timeout, or the 512-byte cap.
+                if len(partial) >= _MAX_RESPONSE_SIZE:
+                    raise YKKApSmartLockProtocolError(
+                        f"YKKApSmartLock response reached {_MAX_RESPONSE_SIZE} "
+                        "bytes without a valid frame"
+                    ) from err
                 _LOGGER.debug(
-                    "Ignoring non-matching YKKApSmartLock notification: %s", err
+                    "Waiting for more YKKApSmartLock response data: %s", err
                 )
-                partial.clear()
                 continue
 
             partial.clear()
-            if frame.base == base and frame.command == command and frame.is_response:
-                return ensure_response(frame, base, command)
+            return ensure_response(frame, base, command)
