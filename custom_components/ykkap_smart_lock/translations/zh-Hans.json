@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "添加 YKKApSmartLock",
-        "description": "输入锁的 BLE 地址。官方手机必须已经与这把锁完成绑定。",
+        "title": "添加 YKK AP 智能门锁",
+        "description": "请手动输入门锁的 BLE 地址。开始设置前，必须已在官方 App 中将管理手机注册到这把门锁。",
         "data": {
           "address": "BLE 地址",
           "name": "名称"
@@ -11,48 +11,48 @@
       },
       "bluetooth": {
         "title": "添加 {name}",
-        "description": "已通过蓝牙发现锁。官方手机必须已经与它完成绑定。"
+        "description": "蓝牙已发现门锁。请确认已在官方 App 中将管理手机注册到这把门锁。"
       },
       "register": {
-        "title": "注册 YKKApSmartLock",
-        "description": "先在官方手机上打开 {address} 的普通设备注册模式，再勾选“已就绪”继续。集成会请求 0x52，使用 0x51 分配新的普通 smartphoneId，并可选用 0x54 退出注册模式。",
+        "title": "注册 YKK AP 智能门锁",
+        "description": "请在已注册的管理手机上依次选择日文菜单［本体設定・鍵の管理］→［鍵の管理］→［スマートフォン］→［追加登録］→［一般用スマートフォン］→［登録開始］。门锁发出「ピー」声后，确认已准备好并继续。",
         "data": {
-          "ready": "锁已进入普通设备注册模式",
-          "request_adv_key": "请求广播密钥",
+          "ready": "门锁已进入普通用户手机（一般用スマートフォン）注册模式",
+          "request_adv_key": "获取施解锁状态同步所需信息",
           "exit_registration": "完成后退出注册模式"
         }
       }
     },
     "error": {
       "invalid_address": "请输入有效的 BLE MAC 地址或平台蓝牙 UUID。",
-      "not_ready": "请先在官方手机上打开普通设备注册模式。",
-      "registration_failed": "注册失败。请确认官方手机已绑定、锁处于注册模式，并且 Home Assistant 能通过 BLE 连接。"
+      "not_ready": "请先在已注册的管理手机上开始注册，并确认门锁已发出「ピー」声。",
+      "registration_failed": "注册失败。请检查：官方 App 中管理手机是否已绑定门锁；是否已开始注册并听到门锁发出的「ピー」声；Home Assistant 或 Bluetooth 代理是否靠近门锁且能够建立 BLE 连接。"
     },
     "abort": {
-      "already_configured": "这把 YKKApSmartLock 已经配置。",
-      "not_connectable": "蓝牙适配器能看到锁，但不能连接它。",
+      "already_configured": "这把 YKK AP 智能门锁已经配置。",
+      "not_connectable": "蓝牙适配器发现了门锁，但无法连接。",
       "missing_device": "缺少蓝牙设备信息。"
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "YKKApSmartLock 选项"
+        "title": "YKK AP 智能门锁选项"
       }
     }
   },
   "services": {
     "register_device": {
-      "name": "注册普通 BLE 设备",
-      "description": "在官方手机打开普通设备注册模式后，为这个 Home Assistant 蓝牙中心注册设备。",
+      "name": "注册为普通用户手机",
+      "description": "在已注册的管理手机开始注册模式后，将这个 Home Assistant 蓝牙连接注册为普通用户手机（一般用スマートフォン）。",
       "fields": {
         "request_adv_key": {
-          "name": "请求广播密钥",
-          "description": "请求并保存 0x10 返回的 16 字节广播密钥。"
+          "name": "获取状态同步所需信息",
+          "description": "获取并保存用于读取和同步门锁上锁或解锁状态所需的信息。"
         },
         "exit_registration": {
           "name": "退出注册模式",
-          "description": "分配新 smartphoneId 后发送 0x54。"
+          "description": "注册完成后退出门锁的注册模式。"
         }
       }
     }

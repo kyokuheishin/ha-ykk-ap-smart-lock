@@ -1,23 +1,23 @@
 register_device:
-  name: Register ordinary BLE device
+  name: Register as a general-use smartphone
   description: >-
-    Register this Home Assistant Bluetooth central after the official phone has
-    already been bound to the lock and has opened ordinary-device registration mode.
+    After the registered management smartphone starts registration mode, register
+    this Home Assistant Bluetooth connection as a general-use smartphone.
   target:
     entity:
       integration: ykkap_smart_lock
       domain: lock
   fields:
     request_adv_key:
-      name: Request advertising key
-      description: Request and retain the 16-byte advertising key returned by command 0x10.
+      name: Get state-synchronization information
+      description: Get and save the information needed to retrieve and synchronize the lock's locked or unlocked state.
       required: false
       default: true
       selector:
         boolean:
     exit_registration:
       name: Exit registration mode
-      description: Send command 0x54 after the new smartphone slot is assigned.
+      description: Exit the lock's registration mode after registration is complete.
       required: false
       default: true
       selector:

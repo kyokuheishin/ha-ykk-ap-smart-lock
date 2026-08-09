@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "YKKApSmartLock を追加",
-        "description": "ロックの BLE アドレスを入力してください。公式スマートフォンで、このロックとのバインドをあらかじめ完了しておく必要があります。",
+        "title": "YKK AP スマートロックを追加",
+        "description": "電気錠の BLE アドレスを手動で入力してください。公式アプリで、管理用スマートフォンとこの電気錠の登録をあらかじめ完了しておく必要があります。",
         "data": {
           "address": "BLE アドレス",
           "name": "名前"
@@ -11,48 +11,48 @@
       },
       "bluetooth": {
         "title": "{name} を追加",
-        "description": "Bluetooth 経由でロックを検出しました。公式スマートフォンで、あらかじめロックとのバインドを完了してください。"
+        "description": "Bluetooth で電気錠を検出しました。公式アプリで、管理用スマートフォンとこの電気錠の登録が完了していることを確認してください。"
       },
       "register": {
-        "title": "YKKApSmartLock を登録",
-        "description": "公式スマートフォンで {address} の通常デバイス登録モードを開いてください。その後「準備完了」を有効にして続行します。この統合は 0x52 を要求し、0x51 で通常デバイス用の smartphoneId を割り当て、必要に応じて 0x54 で登録モードを終了します。",
+        "title": "YKK AP スマートロックを登録",
+        "description": "登録済みの管理用スマートフォンで［本体設定・鍵の管理］→［鍵の管理］→［スマートフォン］→［追加登録］→［一般用スマートフォン］→［登録開始］を選択してください。電気錠から「ピー」と音がしたら、準備ができたことを確認して続行してください。",
         "data": {
-          "ready": "ロックが通常デバイス登録モードになっている",
-          "request_adv_key": "広告データキーを要求する",
+          "ready": "電気錠が一般用スマートフォンの登録モードになっている",
+          "request_adv_key": "施解錠状態の取得・同期に必要な情報を取得する",
           "exit_registration": "完了後に登録モードを終了する"
         }
       }
     },
     "error": {
       "invalid_address": "有効な BLE MAC アドレスまたはプラットフォームの Bluetooth UUID を入力してください。",
-      "not_ready": "先に公式スマートフォンで通常デバイス登録モードを開いてください。",
-      "registration_failed": "登録に失敗しました。公式スマートフォンのバインド、ロックの登録モード、Home Assistant の BLE 接続を確認してください。"
+      "not_ready": "登録済みの管理用スマートフォンで登録を開始し、電気錠から「ピー」と音がしたことを確認してください。",
+      "registration_failed": "登録に失敗しました。公式アプリで管理用スマートフォンと電気錠の登録が完了していること、登録を開始したこと、電気錠から「ピー」と音がしたこと、Home Assistant または Bluetooth proxy が電気錠の近くにあり BLE 接続できることを確認してください。"
     },
     "abort": {
-      "already_configured": "この YKKApSmartLock はすでに設定されています。",
-      "not_connectable": "Bluetooth アダプターはロックを検出できますが、接続できません。",
+      "already_configured": "この YKK AP スマートロックはすでに設定されています。",
+      "not_connectable": "Bluetooth アダプターは電気錠を検出しましたが、接続できません。",
       "missing_device": "Bluetooth デバイス情報がありません。"
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "YKKApSmartLock のオプション"
+        "title": "YKK AP スマートロックのオプション"
       }
     }
   },
   "services": {
     "register_device": {
-      "name": "通常 BLE デバイスを登録",
-      "description": "公式スマートフォンで通常デバイス登録モードを開いた後、この Home Assistant Bluetooth Central を登録します。",
+      "name": "一般用スマートフォンとして登録",
+      "description": "登録済みの管理用スマートフォンで登録モードを開始した後、この Home Assistant の Bluetooth 接続を一般用スマートフォンとして登録します。",
       "fields": {
         "request_adv_key": {
-          "name": "広告データキーを要求",
-          "description": "コマンド 0x10 が返す 16 バイトの広告データキーを要求して保存します。"
+          "name": "施解錠状態の取得・同期に必要な情報を取得",
+          "description": "施解錠状態を取得・同期するために必要な情報を取得して保存します。"
         },
         "exit_registration": {
           "name": "登録モードを終了",
-          "description": "新しい smartphoneId の割り当て後にコマンド 0x54 を送信します。"
+          "description": "登録が完了したら、電気錠の登録モードを終了します。"
         }
       }
     }
