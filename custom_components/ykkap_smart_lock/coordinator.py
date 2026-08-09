@@ -280,9 +280,6 @@ class YKKApSmartLockCoordinator:
         """Return safe diagnostics for the entity state attributes."""
 
         return {
-            "smartphone_id": self.smartphone_id or None,
-            "lot_number": self.lot_number or None,
-            "serial_number": self.serial_number or None,
             "last_command": self.last_command,
             "last_error": self.last_error,
             "registered": self.is_registered,
@@ -344,19 +341,19 @@ class YKKApSmartLockCoordinator:
     async def async_set_lock_state(self, desired_state: int) -> None:
         """Set the physical lock state using the ordinary lock request."""
 
-        if not self.is_registered:
-            raise YKKApSmartLockNotRegistered(
-                "the YKKApSmartLock entry has no smartphoneId/lot/serial; run "
-                "ykkap_smart_lock.register_device after opening registration mode"
-            )
-
-        payload = encode_lock_payload(
-            desired_state,
-            self.smartphone_id,
-            self.lot_number,
-            self.serial_number,
-        )
         async with self._operation_lock:
+            if not self.is_registered:
+                raise YKKApSmartLockNotRegistered(
+                    "the YKKApSmartLock entry has no smartphoneId/lot/serial; run "
+                    "ykkap_smart_lock.register_device after opening registration mode"
+                )
+
+            payload = encode_lock_payload(
+                desired_state,
+                self.smartphone_id,
+                self.lot_number,
+                self.serial_number,
+            )
             try:
                 async with YKKApSmartLockBleClient(
                     self.hass, self.address, self.name

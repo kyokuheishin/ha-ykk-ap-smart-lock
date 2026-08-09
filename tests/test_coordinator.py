@@ -7,6 +7,7 @@ import importlib.util
 import sys
 import types
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 
@@ -27,7 +28,7 @@ core = types.ModuleType("homeassistant.core")
 core.HomeAssistant = object
 util = types.ModuleType("homeassistant.util")
 dt = types.ModuleType("homeassistant.util.dt")
-dt.now = lambda: None
+dt.now = lambda: datetime(2026, 1, 2, 3, 4)
 util.dt = dt
 homeassistant.components = components
 homeassistant.config_entries = config_entries
@@ -72,11 +73,12 @@ sys.modules[ble.__name__] = ble
 
 class FakeClient:
     instances: list["FakeClient"] = []
-    responses: dict[int, object] = {}
+    responses: dict[tuple[int, int], object] = {}
 
     def __init__(self, hass, address, name):
         del hass, address, name
         self.commands: list[int] = []
+        self.calls: list[tuple[int, int, bytes]] = []
         type(self).instances.append(self)
 
     async def __aenter__(self):
@@ -86,9 +88,9 @@ class FakeClient:
         del exc_type, exc, tb
 
     async def command(self, base, command, payload=b""):
-        del base, payload
         self.commands.append(command)
-        response = type(self).responses[command]
+        self.calls.append((base, command, payload))
+        response = type(self).responses[(base, command)]
         if isinstance(response, Exception):
             raise response
         return response
@@ -98,10 +100,10 @@ coordinator = _load("coordinator")
 coordinator.YKKApSmartLockBleClient = FakeClient
 
 
-def _response(command: int, payload: bytes):
+def _response(base: int, command: int, payload: bytes):
     return protocol.parse_frame(
         protocol.build_frame(
-            const.BASE_SETTINGS, command, payload, request=False
+            base, command, payload, request=False
         )
     )
 
@@ -112,7 +114,11 @@ class RegistrationTests(unittest.TestCase):
         FakeClient.responses = {}
 
     def test_missing_identity_does_not_request_smartphone_slot(self) -> None:
-        FakeClient.responses = {const.CMD_REQUEST_GENERAL_LOCK_ID: _response(0x52, b"")}
+        FakeClient.responses = {
+            (const.BASE_SETTINGS, const.CMD_REQUEST_GENERAL_LOCK_ID): _response(
+                const.BASE_SETTINGS, 0x52, b""
+            )
+        }
 
         with self.assertRaises(coordinator.YKKApSmartLockRegistrationError):
             asyncio.run(
@@ -125,9 +131,16 @@ class RegistrationTests(unittest.TestCase):
 
     def test_exit_failure_keeps_completed_registration(self) -> None:
         FakeClient.responses = {
-            const.CMD_REQUEST_GENERAL_LOCK_ID: _response(0x52, b"12A34" b"1234"),
-            const.CMD_REQUEST_GENERAL_SMARTPHONE_ID: _response(0x51, b"\x01"),
-            const.CMD_EXIT_GENERAL_REGISTRATION: coordinator.YKKApSmartLockConnectionError(
+            (const.BASE_SETTINGS, const.CMD_REQUEST_GENERAL_LOCK_ID): _response(
+                const.BASE_SETTINGS, 0x52, b"12A34" b"1234"
+            ),
+            (const.BASE_SETTINGS, const.CMD_REQUEST_GENERAL_SMARTPHONE_ID): _response(
+                const.BASE_SETTINGS, 0x51, b"\x01"
+            ),
+            (
+                const.BASE_SETTINGS,
+                const.CMD_EXIT_GENERAL_REGISTRATION,
+            ): coordinator.YKKApSmartLockConnectionError(
                 "connection lost"
             ),
         }
@@ -143,6 +156,83 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(result[const.CONF_LOT_NUMBER], "12A34")
         self.assertEqual(result[const.CONF_SERIAL_NUMBER], 1234)
         self.assertEqual(FakeClient.instances[0].commands, [0x52, 0x51, 0x54])
+
+    def test_lock_payload_uses_identity_read_after_operation_lock(self) -> None:
+        entry = types.SimpleNamespace(
+            title="lock",
+            data={
+                const.CONF_ADDRESS: "AA:BB:CC:DD:EE:FF",
+                const.CONF_SMARTPHONE_ID: 1,
+                const.CONF_LOT_NUMBER: "12A34",
+                const.CONF_SERIAL_NUMBER: 1234,
+            },
+        )
+        lock_coordinator = coordinator.YKKApSmartLockCoordinator(
+            object(), entry, lambda: None
+        )
+        FakeClient.responses = {
+            (const.BASE_INFORMATION, const.CMD_SET_TIMESTAMP): _response(
+                const.BASE_INFORMATION, const.CMD_SET_TIMESTAMP, b""
+            ),
+            (const.BASE_MAIN, const.CMD_LOCK_REQUEST): _response(
+                const.BASE_MAIN, const.CMD_LOCK_REQUEST, bytes((const.LOCKED,))
+            ),
+        }
+
+        async def run() -> None:
+            await lock_coordinator._operation_lock.acquire()
+            task = asyncio.create_task(
+                lock_coordinator.async_set_lock_state(const.LOCKED)
+            )
+            try:
+                await asyncio.sleep(0)
+                self.assertFalse(task.done())
+                lock_coordinator._data = {
+                    **lock_coordinator._data,
+                    const.CONF_SMARTPHONE_ID: 2,
+                    const.CONF_LOT_NUMBER: "98B76",
+                    const.CONF_SERIAL_NUMBER: 5678,
+                }
+            finally:
+                lock_coordinator._operation_lock.release()
+            await task
+
+        asyncio.run(run())
+
+        lock_call = next(
+            call
+            for call in FakeClient.instances[0].calls
+            if call[:2] == (const.BASE_MAIN, const.CMD_LOCK_REQUEST)
+        )
+        self.assertEqual(
+            lock_call[2],
+            protocol.encode_lock_payload(const.LOCKED, 2, "98B76", 5678),
+        )
+
+    def test_extra_state_attributes_exclude_registration_identity(self) -> None:
+        lock_coordinator = coordinator.YKKApSmartLockCoordinator(
+            object(),
+            types.SimpleNamespace(
+                title="lock",
+                data={
+                    const.CONF_ADDRESS: "AA:BB:CC:DD:EE:FF",
+                    const.CONF_SMARTPHONE_ID: 1,
+                    const.CONF_LOT_NUMBER: "12A34",
+                    const.CONF_SERIAL_NUMBER: 1234,
+                },
+            ),
+            lambda: None,
+        )
+
+        self.assertEqual(
+            lock_coordinator.extra_state_attributes(),
+            {
+                "last_command": None,
+                "last_error": None,
+                "registered": True,
+                "advertising_key_available": False,
+            },
+        )
 
 
 if __name__ == "__main__":
