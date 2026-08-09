@@ -37,6 +37,9 @@ class ProtocolTests(unittest.TestCase):
             bytes.fromhex("8351e6ef"),
         )
 
+    def test_general_smartphone_response_length_is_variable(self) -> None:
+        self.assertIsNone(protocol.response_length(const.BASE_SETTINGS, 0x51))
+
 
 if __name__ == "__main__":
     unittest.main()

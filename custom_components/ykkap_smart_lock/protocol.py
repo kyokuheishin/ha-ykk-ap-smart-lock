@@ -144,12 +144,9 @@ def response_length(base: int, command: int) -> int | None:
         (BASE_MAIN, CMD_LOCK_REQUEST): 5,
         (BASE_MAIN, 0x04): 5,
         (BASE_MAIN, 0x10): 20,
-        # Registration responses are fixed-width in the APK's response
-        # descriptors: 0x52 has lot(5)+serial(4), while 0x51 adds a type byte
-        # and the smartphone ID before the same identity fields.
+        # Registration responses with verified fixed framing.
         (BASE_SETTINGS, 0x41): 15,
         (BASE_SETTINGS, 0x42): 14,
-        (BASE_SETTINGS, 0x51): 15,
         (BASE_SETTINGS, 0x52): 13,
         (BASE_SETTINGS, 0x12): 11,
         (BASE_SETTINGS, 0x13): 5,

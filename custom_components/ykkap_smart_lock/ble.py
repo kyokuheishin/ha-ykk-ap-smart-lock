@@ -108,7 +108,11 @@ class YKKApSmartLockBleClient:
 
             def _notification_handler(characteristic: Any, data: bytearray) -> None:
                 del characteristic
-                self._responses.put_nowait(bytes(data))
+                packet = bytes(data)
+                _LOGGER.debug(
+                    "YKKApSmartLock RX len=%d data=%s", len(packet), packet.hex()
+                )
+                self._responses.put_nowait(packet)
 
             self._notification_callback = _notification_handler
             await self._client.start_notify(
