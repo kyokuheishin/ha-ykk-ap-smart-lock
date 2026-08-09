@@ -34,13 +34,6 @@
       "missing_device": "Bluetooth device information is missing."
     }
   },
-  "options": {
-    "step": {
-      "init": {
-        "title": "YKK AP Smart Lock options"
-      }
-    }
-  },
   "services": {
     "register_device": {
       "name": "Register as a general-use smartphone",

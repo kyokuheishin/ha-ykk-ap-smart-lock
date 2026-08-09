@@ -34,13 +34,6 @@
       "missing_device": "Bluetooth デバイス情報がありません。"
     }
   },
-  "options": {
-    "step": {
-      "init": {
-        "title": "YKK AP スマートロックのオプション"
-      }
-    }
-  },
   "services": {
     "register_device": {
       "name": "Home Assistant を再登録",

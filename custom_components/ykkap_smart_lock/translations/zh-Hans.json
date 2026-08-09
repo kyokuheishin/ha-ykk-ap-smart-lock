@@ -34,13 +34,6 @@
       "missing_device": "缺少蓝牙设备信息。"
     }
   },
-  "options": {
-    "step": {
-      "init": {
-        "title": "YKK AP 智能门锁选项"
-      }
-    }
-  },
   "services": {
     "register_device": {
       "name": "注册为普通用户手机",

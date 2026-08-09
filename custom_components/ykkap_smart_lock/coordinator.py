@@ -34,12 +34,10 @@ from .const import (
 from .protocol import (
     YKKApSmartLockFrame,
     YKKApSmartLockProtocolError,
-    YKKApSmartLockResponseTimeout,
     decode_advertisement_state,
     decode_lock_identity,
     encode_lock_payload,
     encode_timestamp,
-    ensure_response,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -126,9 +124,6 @@ async def async_register_general_device(
         async with YKKApSmartLockBleClient(hass, address, name) as client:
             if request_adv_key:
                 key_response = await client.command(BASE_MAIN, CMD_ADV_DATA_KEY)
-                key_response = ensure_response(
-                    key_response, BASE_MAIN, CMD_ADV_DATA_KEY
-                )
                 if len(key_response.payload) != 16:
                     raise YKKApSmartLockRegistrationError(
                         "advertising-key response has "
@@ -138,9 +133,6 @@ async def async_register_general_device(
 
             lock_response = await client.command(
                 BASE_SETTINGS, CMD_REQUEST_GENERAL_LOCK_ID
-            )
-            lock_response = ensure_response(
-                lock_response, BASE_SETTINGS, CMD_REQUEST_GENERAL_LOCK_ID
             )
             # The APK's generic integer decoder makes the 0x52 response
             # model-dependent. Prefer the same packed lock ID that the APK
@@ -171,9 +163,6 @@ async def async_register_general_device(
                 BASE_SETTINGS,
                 CMD_REQUEST_GENERAL_SMARTPHONE_ID,
             )
-            smartphone_response = ensure_response(
-                smartphone_response, BASE_SETTINGS, CMD_REQUEST_GENERAL_SMARTPHONE_ID
-            )
             smartphone_id = _parse_smartphone_id(smartphone_response)
 
             if exit_registration:
@@ -185,7 +174,6 @@ async def async_register_general_device(
                 except (
                     YKKApSmartLockConnectionError,
                     YKKApSmartLockProtocolError,
-                    YKKApSmartLockResponseTimeout,
                 ) as err:
                     _LOGGER.warning(
                         "YKKApSmartLock exit registration failed after "
@@ -196,7 +184,6 @@ async def async_register_general_device(
     except (
         YKKApSmartLockConnectionError,
         YKKApSmartLockProtocolError,
-        YKKApSmartLockResponseTimeout,
     ) as err:
         raise YKKApSmartLockRegistrationError(str(err)) from err
 
@@ -228,7 +215,6 @@ class YKKApSmartLockCoordinator:
         self.lock_state: int | None = None
         self.last_command: str | None = None
         self.last_error: str | None = None
-        self.registered_at: str | None = None
 
     @property
     def address(self) -> str:
@@ -366,7 +352,6 @@ class YKKApSmartLockCoordinator:
                     response = await client.command(
                         BASE_MAIN, CMD_LOCK_REQUEST, payload
                     )
-                response = ensure_response(response, BASE_MAIN, CMD_LOCK_REQUEST)
                 if not response.payload or response.payload[0] != desired_state:
                     received = response.payload[0] if response.payload else None
                     raise YKKApSmartLockCommandError(
@@ -399,4 +384,3 @@ class YKKApSmartLockCoordinator:
             updated[CONF_ADVERTISING_KEY] = result[CONF_ADVERTISING_KEY]
         self._data = updated
         self.hass.config_entries.async_update_entry(self.entry, data=updated)
-        self.registered_at = dt_util.now().isoformat()

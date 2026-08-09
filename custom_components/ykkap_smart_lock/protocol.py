@@ -1,8 +1,7 @@
 """YKKApSmartLock application protocol helpers.
 
-The values in this module come from the static APK analysis in
-``analysis/bluetooth_protocol.md``.  The packet formats still need to be
-validated against a real lock before this integration is used in production.
+The values in this module come from static APK analysis and observed lock
+traffic documented in ``analysis/bluetooth_protocol.md``.
 """
 
 from __future__ import annotations
@@ -149,14 +148,6 @@ def decode_advertisement_state(data: bytes, advertising_key: str | bytes) -> int
             f"advertisement contains invalid lock state 0x{plaintext[2]:02x}"
         )
     return plaintext[2]
-
-
-def encode_pin(pin: str) -> bytes:
-    """Encode the six numeric PIN bytes used by commands 0x12/0x13."""
-
-    if len(pin) != 6 or not pin.isdecimal() or any(int(char) > 9 for char in pin):
-        raise ValueError("PIN must contain exactly six decimal digits")
-    return bytes(int(char) for char in pin)
 
 
 def encode_lock_payload(

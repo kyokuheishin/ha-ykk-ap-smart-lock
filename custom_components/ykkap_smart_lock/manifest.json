@@ -8,7 +8,6 @@
   "integration_type": "device",
   "config_flow": true,
   "dependencies": ["bluetooth_adapters"],
-  "requirements": ["bleak-retry-connector>=3.0.0"],
   "bluetooth": [
     {
       "connectable": true,

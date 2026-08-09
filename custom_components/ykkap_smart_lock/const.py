@@ -3,7 +3,6 @@
 from typing import Final
 
 DOMAIN: Final = "ykkap_smart_lock"
-NAME: Final = "YKKApSmartLock"
 
 SERVICE_UUID: Final = "a437df7b-60cc-4b5c-98d1-c05e85c88c77"
 NOTIFY_CHAR_UUID: Final = "a4370001-60cc-4b5c-98d1-c05e85c88c77"
@@ -20,7 +19,6 @@ CMD_SET_TIMESTAMP: Final = 0x02
 
 CMD_REQUEST_GENERAL_SMARTPHONE_ID: Final = 0x51
 CMD_REQUEST_GENERAL_LOCK_ID: Final = 0x52
-CMD_ENTER_GENERAL_REGISTRATION: Final = 0x53
 CMD_EXIT_GENERAL_REGISTRATION: Final = 0x54
 
 LOCKED: Final = 1
