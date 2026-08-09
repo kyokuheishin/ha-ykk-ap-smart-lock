@@ -153,12 +153,11 @@ async def async_register_general_device(
             if advertised_identity is not None:
                 lot_number, serial_number = advertised_identity
 
-            # The APK sends the current ID here; a new central starts with zero
-            # so the lock allocates the next ordinary-smartphone slot.
+            # The APK's 0x51 request has no payload; the lock allocates the next
+            # ordinary-smartphone slot.
             smartphone_response = await client.command(
                 BASE_SETTINGS,
                 CMD_REQUEST_GENERAL_SMARTPHONE_ID,
-                b"\x00",
             )
             smartphone_response = ensure_response(
                 smartphone_response, BASE_SETTINGS, CMD_REQUEST_GENERAL_SMARTPHONE_ID
