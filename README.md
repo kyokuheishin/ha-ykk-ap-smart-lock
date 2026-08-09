@@ -4,7 +4,7 @@
 
 ## 日本語
 
-YKKApSmartLock は、YKK AP の電気錠を Home Assistant から操作するための非公式 HACS カスタム統合です。YKK AP が提供または承認するものではなく、公式アプリとも関係のない独立したコミュニティプロジェクトです。
+YKKApSmartLock は、YKK AP の電気錠を Home Assistant から操作するための非公式 HACS カスタム統合です。YKK AP が提供または承認するものではなく、専用アプリ「スマートコントロールキー」とは独立したコミュニティプロジェクトです。
 
 ### できること
 
@@ -15,8 +15,8 @@ YKKApSmartLock は、YKK AP の電気錠を Home Assistant から操作するた
 
 ### 前提条件
 
-- YKK AP 公式アプリで、管理用スマートフォンと電気錠の登録を完了していること
-- 設定時に、登録済みの管理用スマートフォンで次の手順を実行できること：
+- 専用アプリ「スマートコントロールキー」をインストールしたスマートフォンを、電気錠の管理用スマートフォンとして登録していること
+- 設定時に、登録済みの管理用スマートフォンで専用アプリ「スマートコントロールキー」を開き、次の手順を実行できること：
   ［本体設定・鍵の管理］→［鍵の管理］→［スマートフォン］→［追加登録］→［一般用スマートフォン］→［登録開始］
 - 登録時は電気錠の近くに Home Assistant 本体または Bluetooth proxy があること
 
@@ -37,13 +37,13 @@ YKKApSmartLock は、YKK AP の電気錠を Home Assistant から操作するた
 
 1. **設定 → デバイスとサービス → 統合を追加** で **YKKApSmartLock** を選ぶ。
 2. BLE 自動検出された電気錠を選ぶ。表示されない場合は BLE アドレスを入力する。
-3. 登録済みの管理用スマートフォンで、前記の手順から［登録開始］を選ぶ。
+3. 登録済みの管理用スマートフォンで専用アプリ「スマートコントロールキー」を開き、上記の手順から［登録開始］を選ぶ。
 4. 電気錠から「ピー」と音がしたら、ウィザードで準備完了を確認して続行する。
 5. 登録完了後、`lock` エンティティから施錠・解錠を操作する。
 
 ### 再登録
 
-管理用スマートフォンで登録モードをもう一度開始した後、Home Assistant の **開発者ツール → アクション（旧サービス）**から `ykkap_smart_lock.register_device` を実行します。対象の `lock` エンティティを選び、画面の案内に従ってください。
+管理用スマートフォンで専用アプリ「スマートコントロールキー」を開き、［一般用スマートフォン］の登録をもう一度開始した後、Home Assistant の **開発者ツール → アクション（旧サービス）**から `ykkap_smart_lock.register_device` を実行します。対象の `lock` エンティティを選び、画面の案内に従ってください。
 
 ### 注意事項・免責
 
@@ -62,7 +62,7 @@ YKKApSmartLock is an unofficial HACS custom integration for controlling YKK AP s
 
 ### Requirements
 
-- The official YKK AP app has already registered the lock with a management smartphone.
+- The dedicated YKK AP app (「スマートコントロールキー」) has already registered the lock with a management smartphone.
 - During setup, the registered management smartphone must be able to follow this path:
   [本体設定・鍵の管理] → [鍵の管理] → [スマートフォン] → [追加登録] → [一般用スマートフォン] → [登録開始]
 - Keep Home Assistant or its Bluetooth proxy near the lock during registration.
@@ -108,7 +108,7 @@ YKKApSmartLock 是一个非官方 HACS 自定义集成，用于在 Home Assistan
 
 ### 前置条件
 
-- 官方 YKK AP App 已使用管理手机完成这把门锁的绑定。
+- YKK AP 专用 App「スマートコントロールキー」已使用管理手机完成这把门锁的注册。
 - 设置时，已注册的管理手机需要能够按以下路径操作：
   ［本体設定・鍵の管理］→［鍵の管理］→［スマートフォン］→［追加登録］→［一般用スマートフォン］→［登録開始］
 - 注册期间，请让 Home Assistant 主机或 Bluetooth 代理靠近门锁。
