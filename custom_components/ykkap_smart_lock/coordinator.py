@@ -154,6 +154,17 @@ async def async_register_general_device(
             if advertised_identity is not None:
                 lot_number, serial_number = advertised_identity
 
+            if not isinstance(lot_number, str) or len(lot_number) != 5:
+                raise YKKApSmartLockRegistrationError(
+                    "could not determine a valid five-character lot number "
+                    "before requesting a smartphone slot"
+                )
+            if not isinstance(serial_number, int) or not 0 <= serial_number <= 0xFFFF:
+                raise YKKApSmartLockRegistrationError(
+                    "could not determine a valid serial number before requesting "
+                    "a smartphone slot"
+                )
+
             # The APK's 0x51 request has no payload; the lock allocates the next
             # ordinary-smartphone slot.
             smartphone_response = await client.command(
@@ -165,36 +176,23 @@ async def async_register_general_device(
             )
             smartphone_id = _parse_smartphone_id(smartphone_response)
 
-            # Some firmware returns the lot/serial alongside the smartphone ID.
-            # Prefer it when it is decodable, but retain the 0x52 values as the
-            # canonical fallback.
-            if len(smartphone_response.payload) >= 11 and (
-                lot_number is None or serial_number is None
-            ):
-                try:
-                    lot_number, serial_number = decode_lock_identity(
-                        smartphone_response.payload[2:]
-                    )
-                except (YKKApSmartLockProtocolError, ValueError):
-                    _LOGGER.debug("Ignoring optional identity fields in 0x51 response")
-
-            if lot_number is not None and len(lot_number) != 5:
-                _LOGGER.debug("Ignoring non-five-character lot number from registration")
-                lot_number = None
-            if serial_number is not None and not 0 <= serial_number <= 0xFFFF:
-                _LOGGER.debug("Ignoring out-of-range serial number from registration")
-                serial_number = None
-            if lot_number is None or serial_number is None:
-                raise YKKApSmartLockRegistrationError(
-                    "could not determine lot/serial; keep the lock advertising and "
-                    "retry registration so Home Assistant can read its manufacturer "
-                    "data"
-                )
             if exit_registration:
-                await client.command(
-                    BASE_SETTINGS,
-                    CMD_EXIT_GENERAL_REGISTRATION,
-                )
+                try:
+                    await client.command(
+                        BASE_SETTINGS,
+                        CMD_EXIT_GENERAL_REGISTRATION,
+                    )
+                except (
+                    YKKApSmartLockConnectionError,
+                    YKKApSmartLockProtocolError,
+                    YKKApSmartLockResponseTimeout,
+                ) as err:
+                    _LOGGER.warning(
+                        "YKKApSmartLock exit registration failed after "
+                        "smartphone ID %d was assigned: %s",
+                        smartphone_id,
+                        err,
+                    )
     except (
         YKKApSmartLockConnectionError,
         YKKApSmartLockProtocolError,
