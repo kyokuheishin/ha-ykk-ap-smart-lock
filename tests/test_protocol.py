@@ -8,6 +8,8 @@ import types
 import unittest
 from pathlib import Path
 
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
 
 COMPONENT = Path(__file__).parents[1] / "custom_components" / "ykkap_smart_lock"
 PACKAGE = "_ykkap_protocol_test"
@@ -39,6 +41,36 @@ class ProtocolTests(unittest.TestCase):
 
     def test_general_smartphone_response_length_is_variable(self) -> None:
         self.assertIsNone(protocol.response_length(const.BASE_SETTINGS, 0x51))
+
+    def test_decode_advertisement_state(self) -> None:
+        key = bytes(range(16))
+        product_code = 0x42
+        plaintext = bytearray((0, product_code, const.LOCKED, *range(3, 16)))
+        plaintext[0] = 0
+        for value in plaintext[1:16]:
+            plaintext[0] ^= value
+        encryptor = Cipher(
+            algorithms.AES(key), modes.CBC(bytes(16))
+        ).encryptor()
+        encrypted = encryptor.update(bytes(plaintext)) + encryptor.finalize()
+        advertisement = bytes((product_code, 0, 0, 0, 0, 1)) + encrypted
+
+        self.assertEqual(protocol.decode_advertisement_state(advertisement, key.hex()), 1)
+        self.assertEqual(
+            protocol.decode_advertisement_state(b"\x9d\x09" + advertisement, key), 1
+        )
+        invalid_plaintext = bytes((plaintext[0] ^ 1, *plaintext[1:]))
+        invalid_encryptor = Cipher(
+            algorithms.AES(key), modes.CBC(bytes(16))
+        ).encryptor()
+        invalid_encrypted = (
+            invalid_encryptor.update(invalid_plaintext)
+            + invalid_encryptor.finalize()
+        )
+        with self.assertRaises(protocol.YKKApSmartLockProtocolError):
+            protocol.decode_advertisement_state(
+                bytes((product_code, 0, 0, 0, 0, 1)) + invalid_encrypted, key
+            )
 
 
 if __name__ == "__main__":

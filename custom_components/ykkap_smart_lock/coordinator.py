@@ -35,6 +35,7 @@ from .protocol import (
     YKKApSmartLockFrame,
     YKKApSmartLockProtocolError,
     YKKApSmartLockResponseTimeout,
+    decode_advertisement_state,
     decode_lock_identity,
     encode_lock_payload,
     encode_timestamp,
@@ -304,9 +305,32 @@ class YKKApSmartLockCoordinator:
                 exit_registration=exit_registration,
             )
             self._save_identity(result)
+            self.lock_state = None
             self.last_command = "register_device"
             self.last_error = None
             self._on_update()
+
+    def process_bluetooth_update(
+        self, service_info: bluetooth.BluetoothServiceInfoBleak
+    ) -> None:
+        """Update the state from a validated manufacturer advertisement."""
+
+        if not self.advertising_key:
+            return
+        manufacturer_data = service_info.manufacturer_data.get(MANUFACTURER_ID)
+        if manufacturer_data is None:
+            return
+        try:
+            state = decode_advertisement_state(
+                bytes(manufacturer_data), self.advertising_key
+            )
+        except YKKApSmartLockProtocolError as err:
+            _LOGGER.debug("Could not decode YKKApSmartLock advertisement: %s", err)
+            return
+        if state == self.lock_state:
+            return
+        self.lock_state = state
+        self._on_update()
 
     async def async_set_lock_state(self, desired_state: int) -> None:
         """Set the physical lock state using the ordinary lock request."""

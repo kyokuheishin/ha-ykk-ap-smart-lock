@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
 from .const import (
     BASE_INFORMATION,
     BASE_MAIN,
@@ -92,6 +94,61 @@ def parse_frame(packet: bytes) -> YKKApSmartLockFrame:
         )
 
     return YKKApSmartLockFrame(packet[0], packet[1], packet[2:-2])
+
+
+def decode_advertisement_state(data: bytes, advertising_key: str | bytes) -> int:
+    """Decode and validate the lock state from manufacturer advertisement data."""
+
+    if isinstance(advertising_key, str):
+        if len(advertising_key) != 32:
+            raise YKKApSmartLockProtocolError(
+                "advertising key must contain exactly 16 bytes"
+            )
+        try:
+            key = bytes.fromhex(advertising_key)
+        except ValueError as err:
+            raise YKKApSmartLockProtocolError(
+                "advertising key must be hexadecimal"
+            ) from err
+    elif isinstance(advertising_key, bytes):
+        key = advertising_key
+    else:
+        raise YKKApSmartLockProtocolError("advertising key must be bytes or hexadecimal")
+
+    if len(key) != 16:
+        raise YKKApSmartLockProtocolError("advertising key must contain exactly 16 bytes")
+
+    data = bytes(data)
+    if data.startswith(b"\x9d\x09"):
+        data = data[2:]
+    if len(data) != 22:
+        raise YKKApSmartLockProtocolError(
+            f"advertisement has {len(data)} bytes; expected 22"
+        )
+
+    decryptor = Cipher(
+        algorithms.AES(key), modes.CBC(bytes(16))
+    ).decryptor()
+    plaintext = decryptor.update(data[6:22]) + decryptor.finalize()
+
+    checksum = 0
+    for byte in plaintext[1:16]:
+        checksum ^= byte
+    if plaintext[0] != checksum:
+        raise YKKApSmartLockProtocolError(
+            f"advertisement checksum mismatch: received 0x{plaintext[0]:02x}, "
+            f"calculated 0x{checksum:02x}"
+        )
+    if plaintext[1] != data[0]:
+        raise YKKApSmartLockProtocolError(
+            f"advertisement product code mismatch: received 0x{plaintext[1]:02x}, "
+            f"expected 0x{data[0]:02x}"
+        )
+    if plaintext[2] not in (1, 2):
+        raise YKKApSmartLockProtocolError(
+            f"advertisement contains invalid lock state 0x{plaintext[2]:02x}"
+        )
+    return plaintext[2]
 
 
 def encode_pin(pin: str) -> bytes:

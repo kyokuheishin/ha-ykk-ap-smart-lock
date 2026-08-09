@@ -39,7 +39,6 @@ class YKKApSmartLockLockEntity(LockEntity):
         self._coordinator = coordinator
         self._attr_unique_id = f"{DOMAIN}_{coordinator.address.lower()}"
         self._attr_name = "Lock"
-        self._attr_is_locked: bool | None = None
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -62,7 +61,11 @@ class YKKApSmartLockLockEntity(LockEntity):
     def is_locked(self) -> bool | None:
         """Return the last state confirmed by the lock."""
 
-        return self._attr_is_locked
+        if self._coordinator.lock_state == LOCKED:
+            return True
+        if self._coordinator.lock_state == UNLOCKED:
+            return False
+        return None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -75,16 +78,12 @@ class YKKApSmartLockLockEntity(LockEntity):
 
         del kwargs
         await self._coordinator.async_set_lock_state(LOCKED)
-        self._attr_is_locked = True
-        self.async_write_ha_state()
 
     async def async_unlock(self, **kwargs: Any) -> None:
         """Unlock the door."""
 
         del kwargs
         await self._coordinator.async_set_lock_state(UNLOCKED)
-        self._attr_is_locked = False
-        self.async_write_ha_state()
 
     async def async_register_device(self, service_call: ServiceCall) -> None:
         """Register this central after the user opens lock registration mode."""
@@ -96,5 +95,3 @@ class YKKApSmartLockLockEntity(LockEntity):
             )
         except YKKApSmartLockError as err:
             raise YKKApSmartLockCommandError(str(err)) from err
-        self._attr_is_locked = None
-        self.async_write_ha_state()

@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import voluptuous as vol
+from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv, service
 from homeassistant.helpers.typing import ConfigType
 
-from .const import DOMAIN, SERVICE_REGISTER_DEVICE
+from .const import DOMAIN, MANUFACTURER_ID, SERVICE_REGISTER_DEVICE
 from .coordinator import YKKApSmartLockCoordinator
 
 PLATFORMS: list[Platform] = [Platform.LOCK]
@@ -48,6 +49,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # gives future diagnostic entities a single operation owner.
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    @callback
+    def _async_bluetooth_update(
+        service_info: bluetooth.BluetoothServiceInfoBleak,
+        change: bluetooth.BluetoothChange,
+    ) -> None:
+        """Forward passive manufacturer advertisements to the coordinator."""
+
+        del change
+        coordinator.process_bluetooth_update(service_info)
+
+    entry.async_on_unload(
+        bluetooth.async_register_callback(
+            hass,
+            _async_bluetooth_update,
+            {"address": coordinator.address, "manufacturer_id": MANUFACTURER_ID},
+            bluetooth.BluetoothScanningMode.PASSIVE,
+        )
+    )
     return True
 
 
