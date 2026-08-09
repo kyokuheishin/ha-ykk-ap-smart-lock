@@ -121,9 +121,9 @@ def decode_advertisement_state(data: bytes, advertising_key: str | bytes) -> int
     data = bytes(data)
     if data.startswith(b"\x9d\x09"):
         data = data[2:]
-    if len(data) != 22:
+    if len(data) < 22:
         raise YKKApSmartLockProtocolError(
-            f"advertisement has {len(data)} bytes; expected 22"
+            f"advertisement has {len(data)} bytes; expected at least 22"
         )
 
     decryptor = Cipher(

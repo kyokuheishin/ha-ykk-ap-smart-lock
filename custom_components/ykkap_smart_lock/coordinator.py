@@ -320,15 +320,26 @@ class YKKApSmartLockCoordinator:
         manufacturer_data = service_info.manufacturer_data.get(MANUFACTURER_ID)
         if manufacturer_data is None:
             return
+        data = bytes(manufacturer_data)
         try:
-            state = decode_advertisement_state(
-                bytes(manufacturer_data), self.advertising_key
-            )
+            state = decode_advertisement_state(data, self.advertising_key)
         except YKKApSmartLockProtocolError as err:
-            _LOGGER.debug("Could not decode YKKApSmartLock advertisement: %s", err)
+            _LOGGER.debug(
+                "Could not decode YKKApSmartLock advertisement: "
+                "len=%d data=%s error=%s",
+                len(data),
+                data.hex(),
+                err,
+            )
             return
         if state == self.lock_state:
             return
+        _LOGGER.debug(
+            "YKKApSmartLock %s state changed from %s to %s from BLE advertisement",
+            service_info.address,
+            self.lock_state,
+            state,
+        )
         self.lock_state = state
         self._on_update()
 

@@ -57,8 +57,13 @@ class ProtocolTests(unittest.TestCase):
 
         self.assertEqual(protocol.decode_advertisement_state(advertisement, key.hex()), 1)
         self.assertEqual(
+            protocol.decode_advertisement_state(advertisement + b"\xaa\x55", key), 1
+        )
+        self.assertEqual(
             protocol.decode_advertisement_state(b"\x9d\x09" + advertisement, key), 1
         )
+        with self.assertRaises(protocol.YKKApSmartLockProtocolError):
+            protocol.decode_advertisement_state(advertisement[:-1], key)
         invalid_plaintext = bytes((plaintext[0] ^ 1, *plaintext[1:]))
         invalid_encryptor = Cipher(
             algorithms.AES(key), modes.CBC(bytes(16))
