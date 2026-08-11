@@ -206,6 +206,44 @@ class RegistrationTests(unittest.TestCase):
             protocol.encode_lock_payload(const.LOCKED, 2, "98B76", 5678),
         )
 
+    def test_unlock_adopts_locked_response_and_raises(self) -> None:
+        updates: list[None] = []
+        lock_coordinator = coordinator.YKKApSmartLockCoordinator(
+            object(),
+            types.SimpleNamespace(
+                title="lock",
+                data={
+                    const.CONF_ADDRESS: "AA:BB:CC:DD:EE:FF",
+                    const.CONF_SMARTPHONE_ID: 1,
+                    const.CONF_LOT_NUMBER: "12A34",
+                    const.CONF_SERIAL_NUMBER: 1234,
+                },
+            ),
+            lambda: updates.append(None),
+        )
+        lock_coordinator.lock_state = const.UNLOCKED
+        FakeClient.responses = {
+            (const.BASE_INFORMATION, const.CMD_SET_TIMESTAMP): _response(
+                const.BASE_INFORMATION, const.CMD_SET_TIMESTAMP, b""
+            ),
+            (const.BASE_MAIN, const.CMD_LOCK_REQUEST): _response(
+                const.BASE_MAIN, const.CMD_LOCK_REQUEST, bytes((const.LOCKED,))
+            ),
+        }
+
+        with self.assertRaisesRegex(
+            coordinator.YKKApSmartLockCommandError,
+            r"lock returned state 1, expected 2",
+        ):
+            asyncio.run(lock_coordinator.async_set_lock_state(const.UNLOCKED))
+
+        self.assertEqual(lock_coordinator.lock_state, const.LOCKED)
+        self.assertEqual(lock_coordinator.last_command, "unlock")
+        self.assertEqual(
+            lock_coordinator.last_error, "lock returned state 1, expected 2"
+        )
+        self.assertEqual(len(updates), 1)
+
     def test_extra_state_attributes_exclude_registration_identity(self) -> None:
         lock_coordinator = coordinator.YKKApSmartLockCoordinator(
             object(),

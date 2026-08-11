@@ -29,6 +29,7 @@ from .const import (
     CONF_SMARTPHONE_ID,
     LOCKED,
     MANUFACTURER_ID,
+    UNLOCKED,
 )
 from .protocol import (
     YKKApSmartLockFrame,
@@ -330,11 +331,22 @@ class YKKApSmartLockCoordinator:
                     response = await client.command(
                         BASE_MAIN, CMD_LOCK_REQUEST, payload
                     )
-                if not response.payload or response.payload[0] != desired_state:
-                    received = response.payload[0] if response.payload else None
-                    raise YKKApSmartLockCommandError(
+                received = response.payload[0] if response.payload else None
+                if received not in (LOCKED, UNLOCKED):
+                    message = f"lock returned invalid state {received!r}"
+                    self.last_error = message
+                    self._on_update()
+                    raise YKKApSmartLockCommandError(message)
+
+                self.lock_state = received
+                self.last_command = "lock" if desired_state == LOCKED else "unlock"
+                if received != desired_state:
+                    message = (
                         f"lock returned state {received!r}, expected {desired_state}"
                     )
+                    self.last_error = message
+                    self._on_update()
+                    raise YKKApSmartLockCommandError(message)
             except (
                 YKKApSmartLockConnectionError,
                 YKKApSmartLockProtocolError,
@@ -343,8 +355,6 @@ class YKKApSmartLockCoordinator:
                 self._on_update()
                 raise YKKApSmartLockCommandError(str(err)) from err
 
-            self.lock_state = desired_state
-            self.last_command = "lock" if desired_state == LOCKED else "unlock"
             self.last_error = None
             self._on_update()
 
