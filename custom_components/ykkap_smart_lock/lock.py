@@ -91,7 +91,6 @@ class YKKApSmartLockLockEntity(LockEntity):
         try:
             await self._coordinator.async_register(
                 request_adv_key=service_call.data["request_adv_key"],
-                exit_registration=service_call.data["exit_registration"],
             )
         except YKKApSmartLockError as err:
             raise YKKApSmartLockCommandError(str(err)) from err

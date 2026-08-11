@@ -18,8 +18,7 @@
         "description": "On the registered management smartphone, select [本体設定・鍵の管理] → [鍵の管理] → [スマートフォン] → [追加登録] → [一般用スマートフォン] → [登録開始]. When the lock beeps, confirm that it is ready and continue.",
         "data": {
           "ready": "The lock is ready for general-use smartphone registration",
-          "request_adv_key": "Get information for lock-state synchronization",
-          "exit_registration": "Exit registration mode when finished"
+          "request_adv_key": "Get information for lock-state synchronization"
         }
       }
     },
@@ -42,10 +41,6 @@
         "request_adv_key": {
           "name": "Get state-synchronization information",
           "description": "Get and save the information needed to retrieve and synchronize the lock's locked or unlocked state."
-        },
-        "exit_registration": {
-          "name": "Exit registration mode",
-          "description": "Exit the lock's registration mode after registration is complete."
         }
       }
     }

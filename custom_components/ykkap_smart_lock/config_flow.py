@@ -115,7 +115,6 @@ class YKKApSmartLockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         self._address,
                         self._name,
                         request_adv_key=user_input["request_adv_key"],
-                        exit_registration=user_input["exit_registration"],
                     )
                 except YKKApSmartLockRegistrationError as err:
                     _LOGGER.warning("YKKApSmartLock registration failed: %s", err)
@@ -129,7 +128,6 @@ class YKKApSmartLockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required("ready", default=False): cv.boolean,
                     vol.Required("request_adv_key", default=True): cv.boolean,
-                    vol.Required("exit_registration", default=True): cv.boolean,
                 }
             ),
             errors=errors,

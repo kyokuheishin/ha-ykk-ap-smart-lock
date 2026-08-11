@@ -15,10 +15,3 @@ register_device:
       default: true
       selector:
         boolean:
-    exit_registration:
-      name: Exit registration mode
-      description: Exit the lock's registration mode after registration is complete.
-      required: false
-      default: true
-      selector:
-        boolean:

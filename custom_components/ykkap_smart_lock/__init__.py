@@ -33,7 +33,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         entity_domain="lock",
         schema={
             vol.Required("request_adv_key", default=True): cv.boolean,
-            vol.Required("exit_registration", default=True): cv.boolean,
+            # Kept only so existing automations remain valid; the new device
+            # never owns the management-only 0x54 exit command.
+            vol.Optional("exit_registration"): cv.boolean,
         },
         func=_async_register_device,
     )

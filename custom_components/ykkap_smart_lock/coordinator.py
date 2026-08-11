@@ -18,7 +18,6 @@ from .const import (
     BASE_MAIN,
     BASE_SETTINGS,
     CMD_ADV_DATA_KEY,
-    CMD_EXIT_GENERAL_REGISTRATION,
     CMD_LOCK_REQUEST,
     CMD_REQUEST_GENERAL_LOCK_ID,
     CMD_REQUEST_GENERAL_SMARTPHONE_ID,
@@ -109,7 +108,6 @@ async def async_register_general_device(
     name: str,
     *,
     request_adv_key: bool = True,
-    exit_registration: bool = True,
 ) -> dict[str, Any]:
     """Register a new ordinary BLE central in an already-managed lock.
 
@@ -157,30 +155,13 @@ async def async_register_general_device(
                     "a smartphone slot"
                 )
 
-            # The APK's 0x51 request has no payload; the lock allocates the next
-            # ordinary-smartphone slot.
+            # The APK passes smartphoneId=0 to allocate the next ordinary slot.
             smartphone_response = await client.command(
                 BASE_SETTINGS,
                 CMD_REQUEST_GENERAL_SMARTPHONE_ID,
+                b"\x00",
             )
             smartphone_id = _parse_smartphone_id(smartphone_response)
-
-            if exit_registration:
-                try:
-                    await client.command(
-                        BASE_SETTINGS,
-                        CMD_EXIT_GENERAL_REGISTRATION,
-                    )
-                except (
-                    YKKApSmartLockConnectionError,
-                    YKKApSmartLockProtocolError,
-                ) as err:
-                    _LOGGER.warning(
-                        "YKKApSmartLock exit registration failed after "
-                        "smartphone ID %d was assigned: %s",
-                        smartphone_id,
-                        err,
-                    )
     except (
         YKKApSmartLockConnectionError,
         YKKApSmartLockProtocolError,
@@ -272,9 +253,7 @@ class YKKApSmartLockCoordinator:
             "advertising_key_available": bool(self.advertising_key),
         }
 
-    async def async_register(
-        self, *, request_adv_key: bool, exit_registration: bool
-    ) -> None:
+    async def async_register(self, *, request_adv_key: bool) -> None:
         """Re-run ordinary-device registration for an existing entry."""
 
         async with self._operation_lock:
@@ -283,7 +262,6 @@ class YKKApSmartLockCoordinator:
                 self.address,
                 self.name,
                 request_adv_key=request_adv_key,
-                exit_registration=exit_registration,
             )
             self._save_identity(result)
             self.lock_state = None

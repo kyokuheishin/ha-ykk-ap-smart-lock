@@ -33,10 +33,10 @@ protocol = _load("protocol")
 
 
 class ProtocolTests(unittest.TestCase):
-    def test_general_smartphone_request_is_header_and_crc_only(self) -> None:
+    def test_general_smartphone_request_passes_zero_id(self) -> None:
         self.assertEqual(
-            protocol.build_frame(const.BASE_SETTINGS, 0x51),
-            bytes.fromhex("8351e6ef"),
+            protocol.build_frame(const.BASE_SETTINGS, 0x51, b"\x00"),
+            bytes.fromhex("8351006ce7"),
         )
 
     def test_general_smartphone_response_length_is_variable(self) -> None:

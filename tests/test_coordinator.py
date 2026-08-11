@@ -129,7 +129,7 @@ class RegistrationTests(unittest.TestCase):
 
         self.assertEqual(FakeClient.instances[0].commands, [0x52])
 
-    def test_exit_failure_keeps_completed_registration(self) -> None:
+    def test_registration_uses_zero_id_without_exit_command(self) -> None:
         FakeClient.responses = {
             (const.BASE_SETTINGS, const.CMD_REQUEST_GENERAL_LOCK_ID): _response(
                 const.BASE_SETTINGS, 0x52, b"12A34" b"1234"
@@ -137,25 +137,22 @@ class RegistrationTests(unittest.TestCase):
             (const.BASE_SETTINGS, const.CMD_REQUEST_GENERAL_SMARTPHONE_ID): _response(
                 const.BASE_SETTINGS, 0x51, b"\x01"
             ),
-            (
-                const.BASE_SETTINGS,
-                const.CMD_EXIT_GENERAL_REGISTRATION,
-            ): coordinator.YKKApSmartLockConnectionError(
-                "connection lost"
-            ),
         }
 
-        with self.assertLogs(coordinator._LOGGER, level="WARNING"):
-            result = asyncio.run(
-                coordinator.async_register_general_device(
-                    object(), "AA:BB:CC:DD:EE:FF", "lock", request_adv_key=False
-                )
+        result = asyncio.run(
+            coordinator.async_register_general_device(
+                object(), "AA:BB:CC:DD:EE:FF", "lock", request_adv_key=False
             )
+        )
 
         self.assertEqual(result[const.CONF_SMARTPHONE_ID], 1)
         self.assertEqual(result[const.CONF_LOT_NUMBER], "12A34")
         self.assertEqual(result[const.CONF_SERIAL_NUMBER], 1234)
-        self.assertEqual(FakeClient.instances[0].commands, [0x52, 0x51, 0x54])
+        self.assertEqual(FakeClient.instances[0].commands, [0x52, 0x51])
+        self.assertEqual(
+            FakeClient.instances[0].calls[-1],
+            (const.BASE_SETTINGS, const.CMD_REQUEST_GENERAL_SMARTPHONE_ID, b"\x00"),
+        )
 
     def test_lock_payload_uses_identity_read_after_operation_lock(self) -> None:
         entry = types.SimpleNamespace(
