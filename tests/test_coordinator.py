@@ -87,7 +87,8 @@ class FakeClient:
     async def __aexit__(self, exc_type, exc, tb):
         del exc_type, exc, tb
 
-    async def command(self, base, command, payload=b""):
+    async def command(self, base, command, payload=b"", **kwargs):
+        del kwargs
         self.commands.append(command)
         self.calls.append((base, command, payload))
         response = type(self).responses[(base, command)]

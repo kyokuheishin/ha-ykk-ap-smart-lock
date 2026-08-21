@@ -108,10 +108,21 @@ class _NotifyFailClient:
         self.is_connected = False
 
 
+class _WriteOkClient:
+    def __init__(self, on_write):
+        self._on_write = on_write
+
+    async def write_gatt_char(self, *args, **kwargs):
+        del args, kwargs
+        self._on_write()
+
+
 class BleTransportTests(unittest.TestCase):
     def _client_with_queue(self):
         client = object.__new__(ble.YKKApSmartLockBleClient)
         client._responses = asyncio.Queue()
+        client._rx_buffer = bytearray()
+        client._response_timeout = 0.1
         return client
 
     def test_fixed_response_skips_interleaved_valid_unrelated_frame(self) -> None:
@@ -148,10 +159,128 @@ class BleTransportTests(unittest.TestCase):
 
         self.assertEqual(result.payload, b"\x01\x02\x03\x04\x05")
 
+    def test_concatenated_unrelated_and_target_in_one_notification(self) -> None:
+        client = self._client_with_queue()
+        target = protocol.build_frame(
+            const.BASE_MAIN, const.CMD_LOCK_REQUEST, b"\x02", request=False
+        )
+        unrelated = protocol.build_frame(
+            const.BASE_MAIN, 0x04, b"\x01", request=False
+        )
+        client._responses.put_nowait(unrelated + target)
+
+        result = asyncio.run(
+            client._wait_for_response(
+                const.BASE_MAIN, const.CMD_LOCK_REQUEST, timeout=0.1
+            )
+        )
+
+        self.assertEqual(result.payload, b"\x02")
+
+    def test_accept_skips_stale_lock_state_then_takes_desired(self) -> None:
+        client = self._client_with_queue()
+        stale = protocol.build_frame(
+            const.BASE_MAIN, const.CMD_LOCK_REQUEST, b"\x01", request=False
+        )
+        desired = protocol.build_frame(
+            const.BASE_MAIN, const.CMD_LOCK_REQUEST, b"\x02", request=False
+        )
+        client._responses.put_nowait(stale + desired)
+
+        result = asyncio.run(
+            client._wait_for_response(
+                const.BASE_MAIN,
+                const.CMD_LOCK_REQUEST,
+                timeout=0.1,
+                accept=lambda frame: frame.payload[:1] == b"\x02",
+            )
+        )
+
+        self.assertEqual(result.payload, b"\x02")
+
+    def test_accept_skips_separate_stale_lock_state_notification(self) -> None:
+        client = self._client_with_queue()
+        stale = protocol.build_frame(
+            const.BASE_MAIN, const.CMD_LOCK_REQUEST, b"\x01", request=False
+        )
+        desired = protocol.build_frame(
+            const.BASE_MAIN, const.CMD_LOCK_REQUEST, b"\x02", request=False
+        )
+        client._responses.put_nowait(stale)
+        client._responses.put_nowait(desired)
+
+        result = asyncio.run(
+            client._wait_for_response(
+                const.BASE_MAIN,
+                const.CMD_LOCK_REQUEST,
+                timeout=0.1,
+                accept=lambda frame: frame.payload[:1] == b"\x02",
+            )
+        )
+
+        self.assertEqual(result.payload, b"\x02")
+
+    def test_accept_returns_fallback_when_desired_state_never_arrives(self) -> None:
+        client = self._client_with_queue()
+        stale = protocol.build_frame(
+            const.BASE_MAIN, const.CMD_LOCK_REQUEST, b"\x01", request=False
+        )
+        client._responses.put_nowait(stale)
+
+        result = asyncio.run(
+            client._wait_for_response(
+                const.BASE_MAIN,
+                const.CMD_LOCK_REQUEST,
+                timeout=0.05,
+                accept=lambda frame: frame.payload[:1] == b"\x02",
+            )
+        )
+
+        self.assertEqual(result.payload, b"\x01")
+
+    def test_notification_handler_accepts_one_or_two_arguments(self) -> None:
+        client = self._client_with_queue()
+        packet = protocol.build_frame(
+            const.BASE_MAIN, const.CMD_LOCK_REQUEST, b"\x01", request=False
+        )
+
+        client._on_notification(packet)
+        client._on_notification(object(), bytearray(packet))
+
+        self.assertEqual(client._responses.get_nowait(), packet)
+        self.assertEqual(client._responses.get_nowait(), packet)
+
+    def test_command_discards_stale_pre_write_lock_state(self) -> None:
+        client = self._client_with_queue()
+        stale = protocol.build_frame(
+            const.BASE_MAIN, const.CMD_LOCK_REQUEST, b"\x01", request=False
+        )
+        desired = protocol.build_frame(
+            const.BASE_MAIN, const.CMD_LOCK_REQUEST, b"\x02", request=False
+        )
+        client._responses.put_nowait(stale)
+        client._client = _WriteOkClient(
+            lambda: client._responses.put_nowait(desired)
+        )
+        client._write_characteristic = _WriteCharacteristic()
+
+        result = asyncio.run(
+            client.command(
+                const.BASE_MAIN,
+                const.CMD_LOCK_REQUEST,
+                b"\x02",
+                accept=lambda frame: frame.payload[:1] == b"\x02",
+            )
+        )
+
+        self.assertEqual(result.payload, b"\x02")
+
     def test_write_error_is_wrapped(self) -> None:
         client = object.__new__(ble.YKKApSmartLockBleClient)
         client._client = _WriteFailClient()
         client._write_characteristic = _WriteCharacteristic()
+        client._responses = asyncio.Queue()
+        client._rx_buffer = bytearray()
 
         with self.assertRaises(ble.YKKApSmartLockConnectionError) as raised:
             asyncio.run(

@@ -329,7 +329,11 @@ class YKKApSmartLockCoordinator:
                         encode_timestamp(dt_util.now()),
                     )
                     response = await client.command(
-                        BASE_MAIN, CMD_LOCK_REQUEST, payload
+                        BASE_MAIN,
+                        CMD_LOCK_REQUEST,
+                        payload,
+                        accept=lambda frame: bool(frame.payload)
+                        and frame.payload[0] == desired_state,
                     )
                 received = response.payload[0] if response.payload else None
                 if received not in (LOCKED, UNLOCKED):
