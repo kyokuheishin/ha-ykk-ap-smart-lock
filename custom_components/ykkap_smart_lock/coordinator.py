@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -41,6 +42,9 @@ from .protocol import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+# Official app's resumeLockAdvState waits 3000ms after a successful toggle so
+# advertisements that still report the pre-actuation bolt position are ignored.
+_IGNORE_ADVERTISEMENT_SECONDS = 3.0
 
 
 class YKKApSmartLockError(Exception):
@@ -194,6 +198,7 @@ class YKKApSmartLockCoordinator:
         self._on_update = on_update
         self._operation_lock = asyncio.Lock()
         self._data = dict(entry.data)
+        self._ignore_advertisements_until = 0.0
         self.lock_state: int | None = None
         self.last_command: str | None = None
         self.last_error: str | None = None
@@ -277,6 +282,8 @@ class YKKApSmartLockCoordinator:
 
         if not self.advertising_key:
             return
+        if time.monotonic() < self._ignore_advertisements_until:
+            return
         manufacturer_data = service_info.manufacturer_data.get(MANUFACTURER_ID)
         if manufacturer_data is None:
             return
@@ -332,8 +339,6 @@ class YKKApSmartLockCoordinator:
                         BASE_MAIN,
                         CMD_LOCK_REQUEST,
                         payload,
-                        accept=lambda frame: bool(frame.payload)
-                        and frame.payload[0] == desired_state,
                     )
                 received = response.payload[0] if response.payload else None
                 if received not in (LOCKED, UNLOCKED):
@@ -342,15 +347,20 @@ class YKKApSmartLockCoordinator:
                     self._on_update()
                     raise YKKApSmartLockCommandError(message)
 
-                self.lock_state = received
-                self.last_command = "lock" if desired_state == LOCKED else "unlock"
+                # 0x03 lockState is the current/pre-actuation value, not an ACK
+                # of the commanded state. The official app still dispatches
+                # success and ignores advertisements while the bolt moves.
                 if received != desired_state:
-                    message = (
-                        f"lock returned state {received!r}, expected {desired_state}"
+                    _LOGGER.debug(
+                        "YKKApSmartLock 0x03 reported state %s after commanding %s",
+                        received,
+                        desired_state,
                     )
-                    self.last_error = message
-                    self._on_update()
-                    raise YKKApSmartLockCommandError(message)
+                self.lock_state = desired_state
+                self.last_command = "lock" if desired_state == LOCKED else "unlock"
+                self._ignore_advertisements_until = (
+                    time.monotonic() + _IGNORE_ADVERTISEMENT_SECONDS
+                )
             except (
                 YKKApSmartLockConnectionError,
                 YKKApSmartLockProtocolError,

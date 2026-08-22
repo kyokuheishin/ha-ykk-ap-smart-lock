@@ -79,6 +79,7 @@ class FakeClient:
         del hass, address, name
         self.commands: list[int] = []
         self.calls: list[tuple[int, int, bytes]] = []
+        self.kwargs: list[dict] = []
         type(self).instances.append(self)
 
     async def __aenter__(self):
@@ -88,9 +89,9 @@ class FakeClient:
         del exc_type, exc, tb
 
     async def command(self, base, command, payload=b"", **kwargs):
-        del kwargs
         self.commands.append(command)
         self.calls.append((base, command, payload))
+        self.kwargs.append(kwargs)
         response = type(self).responses[(base, command)]
         if isinstance(response, Exception):
             raise response
@@ -207,7 +208,7 @@ class RegistrationTests(unittest.TestCase):
             protocol.encode_lock_payload(const.LOCKED, 2, "98B76", 5678),
         )
 
-    def test_unlock_adopts_locked_response_and_raises(self) -> None:
+    def test_unlock_succeeds_when_response_reports_current_locked_state(self) -> None:
         updates: list[None] = []
         lock_coordinator = coordinator.YKKApSmartLockCoordinator(
             object(),
@@ -222,7 +223,7 @@ class RegistrationTests(unittest.TestCase):
             ),
             lambda: updates.append(None),
         )
-        lock_coordinator.lock_state = const.UNLOCKED
+        lock_coordinator.lock_state = const.LOCKED
         FakeClient.responses = {
             (const.BASE_INFORMATION, const.CMD_SET_TIMESTAMP): _response(
                 const.BASE_INFORMATION, const.CMD_SET_TIMESTAMP, b""
@@ -232,18 +233,89 @@ class RegistrationTests(unittest.TestCase):
             ),
         }
 
+        asyncio.run(lock_coordinator.async_set_lock_state(const.UNLOCKED))
+
+        self.assertEqual(lock_coordinator.lock_state, const.UNLOCKED)
+        self.assertEqual(lock_coordinator.last_command, "unlock")
+        self.assertIsNone(lock_coordinator.last_error)
+        self.assertGreater(lock_coordinator._ignore_advertisements_until, 0)
+        self.assertEqual(len(updates), 1)
+        self.assertNotIn("accept", FakeClient.instances[0].kwargs[-1])
+
+    def test_invalid_lock_state_still_raises(self) -> None:
+        lock_coordinator = coordinator.YKKApSmartLockCoordinator(
+            object(),
+            types.SimpleNamespace(
+                title="lock",
+                data={
+                    const.CONF_ADDRESS: "AA:BB:CC:DD:EE:FF",
+                    const.CONF_SMARTPHONE_ID: 1,
+                    const.CONF_LOT_NUMBER: "12A34",
+                    const.CONF_SERIAL_NUMBER: 1234,
+                },
+            ),
+            lambda: None,
+        )
+        FakeClient.responses = {
+            (const.BASE_INFORMATION, const.CMD_SET_TIMESTAMP): _response(
+                const.BASE_INFORMATION, const.CMD_SET_TIMESTAMP, b""
+            ),
+            (const.BASE_MAIN, const.CMD_LOCK_REQUEST): _response(
+                const.BASE_MAIN, const.CMD_LOCK_REQUEST, b"\x00"
+            ),
+        }
+
         with self.assertRaisesRegex(
             coordinator.YKKApSmartLockCommandError,
-            r"lock returned state 1, expected 2",
+            r"lock returned invalid state 0",
         ):
             asyncio.run(lock_coordinator.async_set_lock_state(const.UNLOCKED))
 
-        self.assertEqual(lock_coordinator.lock_state, const.LOCKED)
-        self.assertEqual(lock_coordinator.last_command, "unlock")
-        self.assertEqual(
-            lock_coordinator.last_error, "lock returned state 1, expected 2"
+        self.assertIsNone(lock_coordinator.lock_state)
+        self.assertEqual(lock_coordinator.last_error, "lock returned invalid state 0")
+
+    def test_stale_advertisement_is_ignored_after_lock_command(self) -> None:
+        original_decode = coordinator.decode_advertisement_state
+        lock_coordinator = coordinator.YKKApSmartLockCoordinator(
+            object(),
+            types.SimpleNamespace(
+                title="lock",
+                data={
+                    const.CONF_ADDRESS: "AA:BB:CC:DD:EE:FF",
+                    const.CONF_SMARTPHONE_ID: 1,
+                    const.CONF_LOT_NUMBER: "12A34",
+                    const.CONF_SERIAL_NUMBER: 1234,
+                    const.CONF_ADVERTISING_KEY: "00" * 16,
+                },
+            ),
+            lambda: None,
         )
-        self.assertEqual(len(updates), 1)
+        FakeClient.responses = {
+            (const.BASE_INFORMATION, const.CMD_SET_TIMESTAMP): _response(
+                const.BASE_INFORMATION, const.CMD_SET_TIMESTAMP, b""
+            ),
+            (const.BASE_MAIN, const.CMD_LOCK_REQUEST): _response(
+                const.BASE_MAIN, const.CMD_LOCK_REQUEST, bytes((const.LOCKED,))
+            ),
+        }
+        service_info = types.SimpleNamespace(
+            address="AA:BB:CC:DD:EE:FF",
+            manufacturer_data={const.MANUFACTURER_ID: b"\x00" * 8},
+        )
+
+        try:
+            coordinator.decode_advertisement_state = (
+                lambda data, key: const.LOCKED
+            )
+            asyncio.run(lock_coordinator.async_set_lock_state(const.UNLOCKED))
+            lock_coordinator.process_bluetooth_update(service_info)
+            self.assertEqual(lock_coordinator.lock_state, const.UNLOCKED)
+
+            lock_coordinator._ignore_advertisements_until = 0
+            lock_coordinator.process_bluetooth_update(service_info)
+            self.assertEqual(lock_coordinator.lock_state, const.LOCKED)
+        finally:
+            coordinator.decode_advertisement_state = original_decode
 
     def test_extra_state_attributes_exclude_registration_identity(self) -> None:
         lock_coordinator = coordinator.YKKApSmartLockCoordinator(
