@@ -12,7 +12,7 @@ from homeassistant.components import bluetooth
 from homeassistant.const import CONF_NAME
 from homeassistant.helpers import config_validation as cv
 
-from .const import CONF_ADDRESS, DOMAIN
+from .const import CONF_ADDRESS, CONF_LOCK_NAME, DOMAIN
 from .coordinator import (
     YKKApSmartLockRegistrationError,
     async_register_general_device,
@@ -120,7 +120,9 @@ class YKKApSmartLockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     _LOGGER.warning("YKKApSmartLock registration failed: %s", err)
                     errors["base"] = "registration_failed"
                 else:
-                    return self.async_create_entry(title=self._name, data=result)
+                    return self.async_create_entry(
+                        title=result.get(CONF_LOCK_NAME, self._name), data=result
+                    )
 
         return self.async_show_form(
             step_id="register",

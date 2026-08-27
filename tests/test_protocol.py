@@ -39,8 +39,13 @@ class ProtocolTests(unittest.TestCase):
             bytes.fromhex("8351006ce7"),
         )
 
-    def test_general_smartphone_response_length_is_variable(self) -> None:
-        self.assertIsNone(protocol.response_length(const.BASE_SETTINGS, 0x51))
+    def test_registration_response_lengths_match_apk_fields(self) -> None:
+        self.assertEqual(protocol.response_length(const.BASE_SETTINGS, 0x51), 15)
+        self.assertEqual(protocol.response_length(const.BASE_SETTINGS, 0x23), 34)
+
+    def test_decode_lock_name(self) -> None:
+        payload = "玄関".encode("utf-16-be").ljust(30, b"\x00")
+        self.assertEqual(protocol.decode_lock_name(payload), "玄関")
 
     def test_decode_advertisement_state(self) -> None:
         key = bytes(range(16))

@@ -22,14 +22,20 @@ from .const import (
     CMD_LOCK_REQUEST,
     CMD_REQUEST_GENERAL_LOCK_ID,
     CMD_REQUEST_GENERAL_SMARTPHONE_ID,
+    CMD_REQUEST_NAME,
+    CMD_SET_APP_VERSION,
     CMD_SET_TIMESTAMP,
     CONF_ADDRESS,
     CONF_ADVERTISING_KEY,
+    CONF_LOCK_NAME,
     CONF_LOT_NUMBER,
+    CONF_PRODUCT_CODE,
     CONF_SERIAL_NUMBER,
     CONF_SMARTPHONE_ID,
     LOCKED,
+    MANAGEMENT_PHONE_TYPE,
     MANUFACTURER_ID,
+    OFFICIAL_APP_VERSION,
     UNLOCKED,
 )
 from .protocol import (
@@ -37,6 +43,7 @@ from .protocol import (
     YKKApSmartLockProtocolError,
     decode_advertisement_state,
     decode_lock_identity,
+    decode_lock_name,
     encode_lock_payload,
     encode_timestamp,
 )
@@ -63,21 +70,28 @@ class YKKApSmartLockCommandError(YKKApSmartLockError):
     """Raised when an operation is rejected or returns an invalid state."""
 
 
-def _parse_smartphone_id(frame: YKKApSmartLockFrame) -> int:
-    """Extract the assigned smartphone ID from a registration response."""
+def _parse_smartphone_registration(
+    frame: YKKApSmartLockFrame,
+) -> tuple[int, int, str, int]:
+    """Decode the complete ordinary-smartphone registration response."""
 
-    if not frame.payload or frame.payload[0] == 0:
+    if len(frame.payload) != 11:
+        raise YKKApSmartLockRegistrationError(
+            f"smartphone response has {len(frame.payload)} bytes; expected 11"
+        )
+    if frame.payload[0] == 0:
         raise YKKApSmartLockRegistrationError(
             "the lock returned smartphoneId=0; make sure the official phone "
             "has opened ordinary-device registration mode"
         )
-    return frame.payload[0]
+    lot_number, serial_number = decode_lock_identity(frame.payload[2:])
+    return frame.payload[0], frame.payload[1], lot_number, serial_number
 
 
-def _identity_from_advertisement(
+def _registration_data_from_advertisement(
     hass: HomeAssistant, address: str
-) -> tuple[str, int] | None:
-    """Recover the five-character lot and serial from the cached advertisement.
+) -> tuple[int, str, int] | None:
+    """Recover product code, lot and serial from the cached advertisement.
 
     Home Assistant removes the two-byte company ID from manufacturer data. The
     APK's remaining layout is productCode, registrationMode, four-byte packed
@@ -104,7 +118,7 @@ def _identity_from_advertisement(
     if not 1 <= month <= 12 or not 1 <= day <= 31:
         return None
     lot_number = f"{year:02d}{chr(64 + month)}{day:02d}"
-    return lot_number, serial_number
+    return data[0], lot_number, serial_number
 
 
 async def async_register_general_device(
@@ -113,6 +127,8 @@ async def async_register_general_device(
     name: str,
     *,
     request_adv_key: bool = True,
+    existing_smartphone_id: int = 0,
+    product_code: int | None = None,
 ) -> dict[str, Any]:
     """Register a new ordinary BLE central in an already-managed lock.
 
@@ -123,8 +139,31 @@ async def async_register_general_device(
     result: dict[str, Any] = {}
     lot_number: str | None = None
     serial_number: int | None = None
+    if not 0 <= existing_smartphone_id <= 0xFF:
+        raise YKKApSmartLockRegistrationError(
+            "existing smartphoneId must be between 0 and 255"
+        )
+
+    advertised_registration = _registration_data_from_advertisement(hass, address)
+    if advertised_registration is not None:
+        product_code, advertised_lot, advertised_serial = advertised_registration
+        result[CONF_PRODUCT_CODE] = product_code
+    elif product_code is not None:
+        result[CONF_PRODUCT_CODE] = product_code
+
     try:
         async with YKKApSmartLockBleClient(hass, address, name) as client:
+            if product_code == 2:
+                version_response = await client.command(
+                    BASE_INFORMATION,
+                    CMD_SET_APP_VERSION,
+                    OFFICIAL_APP_VERSION,
+                )
+                if not version_response.payload or version_response.payload[0] == 0:
+                    raise YKKApSmartLockRegistrationError(
+                        "the lock rejected official app version 2.1.1"
+                    )
+
             if request_adv_key:
                 key_response = await client.command(BASE_MAIN, CMD_ADV_DATA_KEY)
                 if len(key_response.payload) != 16:
@@ -145,9 +184,8 @@ async def async_register_general_device(
             except (YKKApSmartLockProtocolError, ValueError):
                 _LOGGER.debug("Could not decode the 0x52 identity response directly")
 
-            advertised_identity = _identity_from_advertisement(hass, address)
-            if advertised_identity is not None:
-                lot_number, serial_number = advertised_identity
+            if advertised_registration is not None:
+                lot_number, serial_number = advertised_lot, advertised_serial
 
             if not isinstance(lot_number, str) or len(lot_number) != 5:
                 raise YKKApSmartLockRegistrationError(
@@ -160,13 +198,22 @@ async def async_register_general_device(
                     "a smartphone slot"
                 )
 
-            # The APK passes smartphoneId=0 to allocate the next ordinary slot.
+            # The APK passes zero only for a new device and reuses its saved ID
+            # when the same ordinary device registers again.
             smartphone_response = await client.command(
                 BASE_SETTINGS,
                 CMD_REQUEST_GENERAL_SMARTPHONE_ID,
-                b"\x00",
+                bytes((existing_smartphone_id,)),
             )
-            smartphone_id = _parse_smartphone_id(smartphone_response)
+            smartphone_id, phone_type, _, _ = (
+                _parse_smartphone_registration(smartphone_response)
+            )
+
+            if phone_type != MANAGEMENT_PHONE_TYPE:
+                name_response = await client.command(BASE_SETTINGS, CMD_REQUEST_NAME)
+                lock_name = decode_lock_name(name_response.payload)
+                if lock_name:
+                    result[CONF_LOCK_NAME] = lock_name
     except (
         YKKApSmartLockConnectionError,
         YKKApSmartLockProtocolError,
@@ -268,6 +315,8 @@ class YKKApSmartLockCoordinator:
                 self.address,
                 self.name,
                 request_adv_key=request_adv_key,
+                existing_smartphone_id=self.smartphone_id,
+                product_code=self._data.get(CONF_PRODUCT_CODE),
             )
             self._save_identity(result)
             self.lock_state = None
@@ -384,5 +433,13 @@ class YKKApSmartLockCoordinator:
         }
         if result.get(CONF_ADVERTISING_KEY):
             updated[CONF_ADVERTISING_KEY] = result[CONF_ADVERTISING_KEY]
+        if CONF_PRODUCT_CODE in result:
+            updated[CONF_PRODUCT_CODE] = result[CONF_PRODUCT_CODE]
+        if result.get(CONF_LOCK_NAME):
+            updated[CONF_LOCK_NAME] = result[CONF_LOCK_NAME]
         self._data = updated
-        self.hass.config_entries.async_update_entry(self.entry, data=updated)
+        self.hass.config_entries.async_update_entry(
+            self.entry,
+            data=updated,
+            title=result.get(CONF_LOCK_NAME, self.entry.title),
+        )

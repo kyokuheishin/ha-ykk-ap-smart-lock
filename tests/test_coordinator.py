@@ -131,13 +131,18 @@ class RegistrationTests(unittest.TestCase):
 
         self.assertEqual(FakeClient.instances[0].commands, [0x52])
 
-    def test_registration_uses_zero_id_without_exit_command(self) -> None:
+    def test_initial_registration_uses_zero_id_and_reads_name(self) -> None:
         FakeClient.responses = {
             (const.BASE_SETTINGS, const.CMD_REQUEST_GENERAL_LOCK_ID): _response(
                 const.BASE_SETTINGS, 0x52, b"12A34" b"1234"
             ),
             (const.BASE_SETTINGS, const.CMD_REQUEST_GENERAL_SMARTPHONE_ID): _response(
-                const.BASE_SETTINGS, 0x51, b"\x01"
+                const.BASE_SETTINGS, 0x51, b"\x01\x02" b"12A34" b"1234"
+            ),
+            (const.BASE_SETTINGS, const.CMD_REQUEST_NAME): _response(
+                const.BASE_SETTINGS,
+                0x23,
+                "玄関".encode("utf-16-be").ljust(30, b"\x00"),
             ),
         }
 
@@ -150,10 +155,53 @@ class RegistrationTests(unittest.TestCase):
         self.assertEqual(result[const.CONF_SMARTPHONE_ID], 1)
         self.assertEqual(result[const.CONF_LOT_NUMBER], "12A34")
         self.assertEqual(result[const.CONF_SERIAL_NUMBER], 1234)
-        self.assertEqual(FakeClient.instances[0].commands, [0x52, 0x51])
+        self.assertEqual(result[const.CONF_LOCK_NAME], "玄関")
+        self.assertEqual(FakeClient.instances[0].commands, [0x52, 0x51, 0x23])
         self.assertEqual(
-            FakeClient.instances[0].calls[-1],
+            FakeClient.instances[0].calls[1],
             (const.BASE_SETTINGS, const.CMD_REQUEST_GENERAL_SMARTPHONE_ID, b"\x00"),
+        )
+
+    def test_reregistration_reuses_id_and_sets_version_for_product_two(self) -> None:
+        FakeClient.responses = {
+            (const.BASE_INFORMATION, const.CMD_SET_APP_VERSION): _response(
+                const.BASE_INFORMATION, 0x03, b"\x01"
+            ),
+            (const.BASE_SETTINGS, const.CMD_REQUEST_GENERAL_LOCK_ID): _response(
+                const.BASE_SETTINGS, 0x52, b"12A34" b"1234"
+            ),
+            (const.BASE_SETTINGS, const.CMD_REQUEST_GENERAL_SMARTPHONE_ID): _response(
+                const.BASE_SETTINGS, 0x51, b"\x07\x01" b"12A34" b"1234"
+            ),
+        }
+
+        result = asyncio.run(
+            coordinator.async_register_general_device(
+                object(),
+                "AA:BB:CC:DD:EE:FF",
+                "lock",
+                request_adv_key=False,
+                existing_smartphone_id=7,
+                product_code=2,
+            )
+        )
+
+        self.assertEqual(result[const.CONF_SMARTPHONE_ID], 7)
+        self.assertEqual(
+            FakeClient.instances[0].calls,
+            [
+                (
+                    const.BASE_INFORMATION,
+                    const.CMD_SET_APP_VERSION,
+                    const.OFFICIAL_APP_VERSION,
+                ),
+                (const.BASE_SETTINGS, const.CMD_REQUEST_GENERAL_LOCK_ID, b""),
+                (
+                    const.BASE_SETTINGS,
+                    const.CMD_REQUEST_GENERAL_SMARTPHONE_ID,
+                    b"\x07",
+                ),
+            ],
         )
 
     def test_lock_payload_uses_identity_read_after_operation_lock(self) -> None:

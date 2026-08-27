@@ -16,9 +16,15 @@ BASE_SETTINGS: Final = 3
 CMD_LOCK_REQUEST: Final = 0x03
 CMD_ADV_DATA_KEY: Final = 0x10
 CMD_SET_TIMESTAMP: Final = 0x02
+CMD_SET_APP_VERSION: Final = 0x03
 
+CMD_REQUEST_NAME: Final = 0x23
 CMD_REQUEST_GENERAL_SMARTPHONE_ID: Final = 0x51
 CMD_REQUEST_GENERAL_LOCK_ID: Final = 0x52
+
+# Version reported by the analysed official APK (versionName 2.1.1).
+OFFICIAL_APP_VERSION: Final = b"211"
+MANAGEMENT_PHONE_TYPE: Final = 1
 
 LOCKED: Final = 1
 UNLOCKED: Final = 2
@@ -28,6 +34,8 @@ CONF_SMARTPHONE_ID: Final = "smartphone_id"
 CONF_LOT_NUMBER: Final = "lot_number"
 CONF_SERIAL_NUMBER: Final = "serial_number"
 CONF_ADVERTISING_KEY: Final = "advertising_key"
+CONF_LOCK_NAME: Final = "lock_name"
+CONF_PRODUCT_CODE: Final = "product_code"
 
 SERVICE_REGISTER_DEVICE: Final = "register_device"
 

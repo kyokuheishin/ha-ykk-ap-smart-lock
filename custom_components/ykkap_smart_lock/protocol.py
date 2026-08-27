@@ -192,9 +192,12 @@ def response_length(base: int, command: int) -> int | None:
         (BASE_MAIN, CMD_LOCK_REQUEST): 5,
         (BASE_MAIN, 0x04): 5,
         (BASE_MAIN, 0x10): 20,
+        (BASE_INFORMATION, 0x03): 5,
         # Registration responses with verified fixed framing.
+        (BASE_SETTINGS, 0x23): 34,
         (BASE_SETTINGS, 0x41): 15,
         (BASE_SETTINGS, 0x42): 14,
+        (BASE_SETTINGS, 0x51): 15,
         (BASE_SETTINGS, 0x52): 13,
         (BASE_SETTINGS, 0x12): 11,
         (BASE_SETTINGS, 0x13): 5,
@@ -231,6 +234,19 @@ def decode_lock_identity(payload: bytes) -> tuple[str, int]:
             f"{len(payload)} payload bytes; expected at least 9"
         )
     return decode_text_field(payload[:5]), decode_serial_field(payload[5:9])
+
+
+def decode_lock_name(payload: bytes) -> str:
+    """Decode the APK's 30-byte, two-byte-wide lock name field."""
+
+    if len(payload) != 30:
+        raise YKKApSmartLockProtocolError(
+            f"lock-name response has {len(payload)} payload bytes; expected 30"
+        )
+    try:
+        return payload.decode("utf-16-be").rstrip("\x00 ")
+    except UnicodeDecodeError as err:
+        raise YKKApSmartLockProtocolError("lock name is not valid UTF-16BE") from err
 
 
 def ensure_response(
