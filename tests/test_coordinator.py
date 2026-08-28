@@ -137,7 +137,9 @@ class RegistrationTests(unittest.TestCase):
                 const.BASE_SETTINGS, 0x52, b"12A34" b"1234"
             ),
             (const.BASE_SETTINGS, const.CMD_REQUEST_GENERAL_SMARTPHONE_ID): _response(
-                const.BASE_SETTINGS, 0x51, b"\x01\x02" b"12A34" b"1234"
+                const.BASE_SETTINGS,
+                0x51,
+                b"\x01\x02" b"12A34" b"1234" + bytes(range(16)),
             ),
             (const.BASE_SETTINGS, const.CMD_REQUEST_NAME): _response(
                 const.BASE_SETTINGS,

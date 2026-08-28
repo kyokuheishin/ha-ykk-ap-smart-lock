@@ -197,7 +197,6 @@ def response_length(base: int, command: int) -> int | None:
         (BASE_SETTINGS, 0x23): 34,
         (BASE_SETTINGS, 0x41): 15,
         (BASE_SETTINGS, 0x42): 14,
-        (BASE_SETTINGS, 0x51): 15,
         (BASE_SETTINGS, 0x52): 13,
         (BASE_SETTINGS, 0x12): 11,
         (BASE_SETTINGS, 0x13): 5,

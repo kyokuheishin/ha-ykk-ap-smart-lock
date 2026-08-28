@@ -75,16 +75,16 @@ def _parse_smartphone_registration(
 ) -> tuple[int, int, str, int]:
     """Decode the complete ordinary-smartphone registration response."""
 
-    if len(frame.payload) != 11:
+    if len(frame.payload) < 11:
         raise YKKApSmartLockRegistrationError(
-            f"smartphone response has {len(frame.payload)} bytes; expected 11"
+            f"smartphone response has {len(frame.payload)} bytes; expected at least 11"
         )
     if frame.payload[0] == 0:
         raise YKKApSmartLockRegistrationError(
             "the lock returned smartphoneId=0; make sure the official phone "
             "has opened ordinary-device registration mode"
         )
-    lot_number, serial_number = decode_lock_identity(frame.payload[2:])
+    lot_number, serial_number = decode_lock_identity(frame.payload[2:11])
     return frame.payload[0], frame.payload[1], lot_number, serial_number
 
 
